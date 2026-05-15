@@ -1,0 +1,6 @@
+{
+  "name": "Retro Square Player",
+  "description": "A 1:1 square aspect ratio music player simulating the classic iPod Nano 3rd Gen interface with a virtual Click Wheel.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
