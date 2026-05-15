@@ -1,18 +1,36 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 interface UseWheelProps {
   onRotate: (steps: number) => void;
   onClickZone?: (angle: number) => void;
+  onRotateStart?: () => void;
+  onRotateEnd?: (meta: RotateEndMeta) => void;
   sensitivity?: number; // angular distance per tick (radians)
 }
 
-export function useWheel({ onRotate, onClickZone, sensitivity = Math.PI / 8 }: UseWheelProps) {
+export interface RotateEndMeta {
+  velocity: number;
+}
+
+const ROTATE_IDLE_RELEASE_MS = 120;
+
+export function useWheel({
+  onRotate,
+  onClickZone,
+  onRotateStart,
+  onRotateEnd,
+  sensitivity = Math.PI / 8,
+}: UseWheelProps) {
   const wheelRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
+  const isRotating = useRef(false);
 
   const accumulatedAngle = useRef(0);
   const lastStepAngle = useRef(0);
   const prevAngle = useRef<number | null>(null);
+  const idleTimer = useRef<number | null>(null);
+  const lastMoveTime = useRef(0);
+  const recentVelocity = useRef(0);
 
   // For tap detection
   const startX = useRef(0);
@@ -28,12 +46,45 @@ export function useWheel({ onRotate, onClickZone, sensitivity = Math.PI / 8 }: U
     return Math.atan2(y - cy, x - cx);
   };
 
+  const clearIdleTimer = () => {
+    if (idleTimer.current !== null) {
+      window.clearTimeout(idleTimer.current);
+      idleTimer.current = null;
+    }
+  };
+
+  const emitRotateEnd = () => {
+    if (!isRotating.current) return;
+
+    isRotating.current = false;
+    onRotateEnd?.({ velocity: recentVelocity.current });
+  };
+
+  const scheduleIdleRelease = () => {
+    clearIdleTimer();
+    idleTimer.current = window.setTimeout(() => {
+      idleTimer.current = null;
+      if (!isRotating.current) return;
+      recentVelocity.current = 0;
+      isRotating.current = false;
+      onRotateEnd?.({ velocity: 0 });
+    }, ROTATE_IDLE_RELEASE_MS);
+  };
+
+  useEffect(() => {
+    return clearIdleTimer;
+  }, []);
+
   const handlePointerDown = (e: React.PointerEvent) => {
     isDragging.current = true;
+    isRotating.current = false;
+    clearIdleTimer();
     hasMoved.current = false;
     startX.current = e.clientX;
     startY.current = e.clientY;
     startTime.current = Date.now();
+    lastMoveTime.current = performance.now();
+    recentVelocity.current = 0;
 
     prevAngle.current = getAngle(e.clientX, e.clientY);
     
@@ -60,6 +111,17 @@ export function useWheel({ onRotate, onClickZone, sensitivity = Math.PI / 8 }: U
     if (delta > Math.PI) delta -= 2 * Math.PI;
     if (delta < -Math.PI) delta += 2 * Math.PI;
 
+    const now = performance.now();
+    const dt = Math.max(0.016, (now - lastMoveTime.current) / 1000);
+    const instantaneousVelocity = (delta / sensitivity) / dt;
+    recentVelocity.current = recentVelocity.current * 0.35 + instantaneousVelocity * 0.65;
+    lastMoveTime.current = now;
+
+    if (hasMoved.current && !isRotating.current) {
+      isRotating.current = true;
+      onRotateStart?.();
+    }
+
     accumulatedAngle.current += delta;
     prevAngle.current = angle;
 
@@ -71,9 +133,15 @@ export function useWheel({ onRotate, onClickZone, sensitivity = Math.PI / 8 }: U
         lastStepAngle.current += steps * sensitivity;
       }
     }
+
+    if (hasMoved.current) {
+      scheduleIdleRelease();
+    }
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
+    clearIdleTimer();
+
     if (isDragging.current && !hasMoved.current && Date.now() - startTime.current < 500) {
       const angle = getAngle(e.clientX, e.clientY);
       if (angle !== null && onClickZone) {
@@ -81,6 +149,7 @@ export function useWheel({ onRotate, onClickZone, sensitivity = Math.PI / 8 }: U
       }
     }
 
+    emitRotateEnd();
     isDragging.current = false;
     prevAngle.current = null;
     if (wheelRef.current) {

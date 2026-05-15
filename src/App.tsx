@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { generateMenuRoot } from './data';
 import { MenuNode, PlaybackMode } from './types';
 import { usePlayer } from './usePlayer';
 import { useAppleMusic } from './useAppleMusic';
 import { ClickWheel } from './components/ClickWheel';
 import { Screen } from './components/Screen';
+import type { RotateEndMeta } from './useWheel';
 
 interface StackItem {
   node: MenuNode;
@@ -13,7 +14,7 @@ interface StackItem {
 
 const PLAYBACK_MODE_ORDER: PlaybackMode[] = ['sequential', 'shuffle', 'repeatAll', 'repeatOne'];
 const COVER_FLOW_MAX_STEPS_PER_INPUT = 4;
-const COVER_FLOW_SELECT_FLIP_MS = 1180;
+const COVER_FLOW_SELECT_HERO_MS = 560;
 
 const findNodeByPath = (root: MenuNode, path: string[]) => {
   let node = root;
@@ -29,6 +30,8 @@ export default function App() {
   const coverFlowSelectTimerRef = useRef<number | null>(null);
   const coverFlowSelectingRef = useRef(false);
   const [coverFlowIsSelecting, setCoverFlowIsSelecting] = useState(false);
+  const [coverFlowIsDragging, setCoverFlowIsDragging] = useState(false);
+  const [coverFlowRelease, setCoverFlowRelease] = useState({ id: 0, velocity: 0 });
   const appleMusic = useAppleMusic();
   const {
     isPlaying,
@@ -90,6 +93,7 @@ export default function App() {
   useEffect(() => {
     if (currentNode.type === 'coverFlow') return;
 
+    setCoverFlowIsDragging(false);
     if (coverFlowSelectTimerRef.current !== null) {
       window.clearTimeout(coverFlowSelectTimerRef.current);
       coverFlowSelectTimerRef.current = null;
@@ -125,12 +129,45 @@ export default function App() {
     });
   };
 
+  const setCoverFlowCursorIndex = useCallback((index: number) => {
+    setStack(prev => {
+      const newStack = [...prev];
+      const top = { ...newStack[newStack.length - 1] };
+      const children = top.node.children;
+
+      if (top.node.type !== 'coverFlow' || !children?.length) return prev;
+
+      const maxIdx = children.length - 1;
+      const nextIdx = Math.max(0, Math.min(maxIdx, index));
+      if (nextIdx === top.cursorIndex) return prev;
+
+      top.cursorIndex = nextIdx;
+      newStack[newStack.length - 1] = top;
+      return newStack;
+    });
+  }, []);
+
+  const handleRotateStart = () => {
+    if (currentNode.type !== 'coverFlow' || coverFlowSelectingRef.current) return;
+    setCoverFlowIsDragging(true);
+  };
+
+  const handleRotateEnd = ({ velocity }: RotateEndMeta) => {
+    if (currentNode.type !== 'coverFlow') return;
+    setCoverFlowIsDragging(false);
+    setCoverFlowRelease(prev => ({
+      id: prev.id + 1,
+      velocity,
+    }));
+  };
+
   const handleRotate = (steps: number) => {
     const canRotate = currentNode.type === 'menu' || currentNode.type === 'coverFlow';
     if (!canRotate || !currentNode.children || steps === 0) return;
 
     if (currentNode.type === 'coverFlow') {
       if (coverFlowSelectingRef.current) return;
+      setCoverFlowIsDragging(true);
 
       const boundedSteps = Math.max(
         -COVER_FLOW_MAX_STEPS_PER_INPUT,
@@ -187,6 +224,7 @@ export default function App() {
       if (!selectedAlbum || coverFlowSelectingRef.current) return;
 
       coverFlowSelectingRef.current = true;
+      setCoverFlowIsDragging(false);
       setCoverFlowIsSelecting(true);
 
       coverFlowSelectTimerRef.current = window.setTimeout(() => {
@@ -198,7 +236,7 @@ export default function App() {
           if (top.node.type !== 'coverFlow') return prev;
           return [...prev, { node: selectedAlbum, cursorIndex: 0 }];
         });
-      }, COVER_FLOW_SELECT_FLIP_MS);
+      }, COVER_FLOW_SELECT_HERO_MS);
       return;
     }
 
@@ -249,6 +287,7 @@ export default function App() {
       window.clearTimeout(coverFlowSelectTimerRef.current);
       coverFlowSelectTimerRef.current = null;
       coverFlowSelectingRef.current = false;
+      setCoverFlowIsDragging(false);
       setCoverFlowIsSelecting(false);
     }
 
@@ -281,6 +320,10 @@ export default function App() {
             progress={progress} 
             playbackMode={playbackMode}
             coverFlowIsSelecting={coverFlowIsSelecting}
+            coverFlowIsDragging={coverFlowIsDragging}
+            coverFlowReleaseId={coverFlowRelease.id}
+            coverFlowReleaseVelocity={coverFlowRelease.velocity}
+            onCoverFlowSettleTarget={setCoverFlowCursorIndex}
           />
         </div>
 
@@ -293,6 +336,8 @@ export default function App() {
             onPlayPause={handlePlayPause}
             onNext={nextTrack}
             onPrev={prevTrack}
+            onRotateStart={handleRotateStart}
+            onRotateEnd={handleRotateEnd}
           />
         </div>
 

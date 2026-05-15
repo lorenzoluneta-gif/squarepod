@@ -1,5 +1,7 @@
 import React from 'react';
-import { useWheel } from '../useWheel';
+import { RotateEndMeta, useWheel } from '../useWheel';
+
+const CLICK_WHEEL_SENSITIVITY = Math.PI / 6;
 
 interface ClickWheelProps {
   onRotate: (steps: number) => void;
@@ -8,9 +10,20 @@ interface ClickWheelProps {
   onPlayPause: () => void;
   onNext: () => void;
   onPrev: () => void;
+  onRotateStart?: () => void;
+  onRotateEnd?: (meta: RotateEndMeta) => void;
 }
 
-export function ClickWheel({ onRotate, onSelect, onMenu, onPlayPause, onNext, onPrev }: ClickWheelProps) {
+export function ClickWheel({
+  onRotate,
+  onSelect,
+  onMenu,
+  onPlayPause,
+  onNext,
+  onPrev,
+  onRotateStart,
+  onRotateEnd,
+}: ClickWheelProps) {
 
   const handleZoneClick = (angle: number) => {
     if (angle >= -Math.PI * 0.75 && angle <= -Math.PI * 0.25) {
@@ -26,7 +39,10 @@ export function ClickWheel({ onRotate, onSelect, onMenu, onPlayPause, onNext, on
 
   const { wheelRef, handlePointerDown, handlePointerMove, handlePointerUp } = useWheel({ 
     onRotate,
-    onClickZone: handleZoneClick
+    onClickZone: handleZoneClick,
+    onRotateStart,
+    onRotateEnd,
+    sensitivity: CLICK_WHEEL_SENSITIVITY,
   });
 
   return (

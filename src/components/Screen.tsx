@@ -11,11 +11,21 @@ interface ScreenProps {
   progress: number;
   playbackMode: PlaybackMode;
   coverFlowIsSelecting: boolean;
+  coverFlowIsDragging: boolean;
+  coverFlowReleaseId: number;
+  coverFlowReleaseVelocity: number;
+  onCoverFlowSettleTarget: (index: number) => void;
 }
 
-const COVER_FLOW_MAX_SPEED = 7.2;
-const COVER_FLOW_FOLLOW_RATE = 9.5;
+const COVER_FLOW_DRAG_MAX_SPEED = 14;
+const COVER_FLOW_DRAG_FOLLOW_RATE = 16;
+const COVER_FLOW_SETTLE_MAX_SPEED = 4.1;
+const COVER_FLOW_SETTLE_FOLLOW_RATE = 6.4;
 const COVER_FLOW_SETTLE_EPSILON = 0.015;
+const COVER_FLOW_RELEASE_MAX_DISTANCE = 1.65;
+const COVER_FLOW_RELEASE_MIN_DISTANCE = 0.62;
+const COVER_FLOW_RELEASE_VELOCITY_FACTOR = 0.22;
+const COVER_FLOW_RELEASE_VELOCITY_EPSILON = 0.15;
 const COVER_FLOW_VISIBLE_RANGE = 4.25;
 
 export function Screen({
@@ -26,28 +36,53 @@ export function Screen({
   progress,
   playbackMode,
   coverFlowIsSelecting,
+  coverFlowIsDragging,
+  coverFlowReleaseId,
+  coverFlowReleaseVelocity,
+  onCoverFlowSettleTarget,
 }: ScreenProps) {
   const [coverFlowPosition, setCoverFlowPosition] = useState(cursorIndex);
   const coverFlowPositionRef = useRef(cursorIndex);
   const coverFlowTargetRef = useRef(cursorIndex);
+  const coverFlowMotionModeRef = useRef<'drag' | 'settle'>('settle');
   const coverFlowFrameRef = useRef<number | null>(null);
   const coverFlowLastTimeRef = useRef<number | null>(null);
+  const coverFlowLastReleaseIdRef = useRef(coverFlowReleaseId);
+  const coverFlowPreviousNodeIdRef = useRef<string | null>(null);
   const shouldReduceMotion = useReducedMotion();
+  const coverFlowAlbumCount = currentNode.type === 'coverFlow'
+    ? currentNode.children?.length || 0
+    : 0;
 
   useEffect(() => {
+    const previousNodeId = coverFlowPreviousNodeIdRef.current;
+    const enteredCoverFlow = currentNode.type === 'coverFlow' && previousNodeId !== currentNode.id;
+    const enteredFromCoverAlbum = enteredCoverFlow && Boolean(previousNodeId?.startsWith('cover_album_'));
+
     if (currentNode.type !== 'coverFlow') {
+      if (coverFlowFrameRef.current !== null) {
+        cancelAnimationFrame(coverFlowFrameRef.current);
+        coverFlowFrameRef.current = null;
+      }
+      coverFlowMotionModeRef.current = 'settle';
+      coverFlowLastTimeRef.current = null;
+      coverFlowLastReleaseIdRef.current = coverFlowReleaseId;
+      coverFlowPreviousNodeIdRef.current = currentNode.id;
+      return;
+    }
+
+    if (enteredCoverFlow && !enteredFromCoverAlbum) {
       if (coverFlowFrameRef.current !== null) {
         cancelAnimationFrame(coverFlowFrameRef.current);
         coverFlowFrameRef.current = null;
       }
       coverFlowPositionRef.current = cursorIndex;
       coverFlowTargetRef.current = cursorIndex;
+      coverFlowMotionModeRef.current = 'settle';
       coverFlowLastTimeRef.current = null;
+      coverFlowLastReleaseIdRef.current = coverFlowReleaseId;
       setCoverFlowPosition(cursorIndex);
-      return;
     }
-
-    coverFlowTargetRef.current = cursorIndex;
 
     if (shouldReduceMotion || coverFlowIsSelecting) {
       if (coverFlowFrameRef.current !== null) {
@@ -55,9 +90,38 @@ export function Screen({
         coverFlowFrameRef.current = null;
       }
       coverFlowPositionRef.current = cursorIndex;
+      coverFlowTargetRef.current = cursorIndex;
+      coverFlowMotionModeRef.current = 'settle';
       coverFlowLastTimeRef.current = null;
+      coverFlowLastReleaseIdRef.current = coverFlowReleaseId;
+      coverFlowPreviousNodeIdRef.current = currentNode.id;
       setCoverFlowPosition(cursorIndex);
       return;
+    }
+
+    if (coverFlowReleaseId !== coverFlowLastReleaseIdRef.current) {
+      coverFlowLastReleaseIdRef.current = coverFlowReleaseId;
+
+      const current = coverFlowPositionRef.current;
+      const velocityDirection = Math.sign(coverFlowReleaseVelocity);
+      const maxIndex = Math.max(0, coverFlowAlbumCount - 1);
+      const rawTarget = Math.abs(coverFlowReleaseVelocity) < COVER_FLOW_RELEASE_VELOCITY_EPSILON
+        ? current
+        : current + Math.max(
+          COVER_FLOW_RELEASE_MIN_DISTANCE,
+          Math.min(
+            COVER_FLOW_RELEASE_MAX_DISTANCE,
+            Math.abs(coverFlowReleaseVelocity) * COVER_FLOW_RELEASE_VELOCITY_FACTOR,
+          ),
+        ) * velocityDirection;
+      const targetIndex = Math.max(0, Math.min(maxIndex, Math.round(rawTarget)));
+
+      coverFlowTargetRef.current = targetIndex;
+      coverFlowMotionModeRef.current = 'settle';
+      onCoverFlowSettleTarget(targetIndex);
+    } else {
+      coverFlowTargetRef.current = cursorIndex;
+      coverFlowMotionModeRef.current = coverFlowIsDragging ? 'drag' : 'settle';
     }
 
     const step = (timestamp: number) => {
@@ -77,8 +141,11 @@ export function Screen({
         return;
       }
 
-      const easedStep = distance * (1 - Math.exp(-COVER_FLOW_FOLLOW_RATE * dt));
-      const maxStep = COVER_FLOW_MAX_SPEED * dt;
+      const isDragging = coverFlowMotionModeRef.current === 'drag';
+      const followRate = isDragging ? COVER_FLOW_DRAG_FOLLOW_RATE : COVER_FLOW_SETTLE_FOLLOW_RATE;
+      const maxSpeed = isDragging ? COVER_FLOW_DRAG_MAX_SPEED : COVER_FLOW_SETTLE_MAX_SPEED;
+      const easedStep = distance * (1 - Math.exp(-followRate * dt));
+      const maxStep = maxSpeed * dt;
       const nextStep = Math.sign(distance) * Math.min(Math.abs(easedStep), maxStep, Math.abs(distance));
       const nextPosition = current + nextStep;
 
@@ -91,7 +158,18 @@ export function Screen({
       coverFlowLastTimeRef.current = null;
       coverFlowFrameRef.current = requestAnimationFrame(step);
     }
-  }, [cursorIndex, currentNode.type, coverFlowIsSelecting, shouldReduceMotion]);
+    coverFlowPreviousNodeIdRef.current = currentNode.id;
+  }, [
+    cursorIndex,
+    currentNode.type,
+    coverFlowAlbumCount,
+    coverFlowIsSelecting,
+    coverFlowIsDragging,
+    coverFlowReleaseId,
+    coverFlowReleaseVelocity,
+    onCoverFlowSettleTarget,
+    shouldReduceMotion,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -329,7 +407,6 @@ export function Screen({
       .map((album, index) => ({ album, index, distance: index - renderPosition }))
       .filter(({ index, distance }) => Math.abs(distance) <= COVER_FLOW_VISIBLE_RANGE || (coverFlowIsSelecting && index === cursorIndex));
     const artist = displayAlbum.detailLines?.[0] || 'Unknown Artist';
-    const songCount = displayAlbum.detailLines?.[1] || `${displayAlbum.children?.length || 0} songs`;
 
     return (
       <div className="relative flex-1 overflow-hidden bg-[linear-gradient(180deg,#f6f6f4_0%,#d9dbdf_46%,#a9adb5_47%,#f3f4f3_100%)]">
@@ -356,7 +433,7 @@ export function Screen({
               ? 0.12
               : Math.max(0.16, 1 - Math.min(absDistance, 1) * 0.22 - beyondFirstSlot * 0.18);
             const shadowOpacity = Math.max(0.16, 0.46 - absDistance * 0.08);
-            const isFlipCard = coverFlowIsSelecting && isSelectedAlbum;
+            const isHeroCard = coverFlowIsSelecting && isSelectedAlbum;
 
             return (
               <div
@@ -373,47 +450,40 @@ export function Screen({
                 <motion.div
                   className="relative h-full w-full"
                   initial={false}
-                  animate={isFlipCard && !shouldReduceMotion
+                  animate={isHeroCard && !shouldReduceMotion
                     ? {
-                        rotateY: 180,
-                        scale: 1.045,
-                        y: -3,
+                        rotateY: 0,
+                        scale: 1.18,
+                        y: -10,
+                        filter: 'brightness(1.06) saturate(1.06)',
                       }
                     : {
                         rotateY: 0,
                         scale: 1,
                         y: 0,
+                        filter: 'brightness(1) saturate(1)',
                       }}
                   transition={{
-                    duration: shouldReduceMotion ? 0 : 0.82,
-                    ease: [0.22, 1, 0.36, 1],
+                    duration: shouldReduceMotion ? 0 : 0.46,
+                    ease: [0.25, 1, 0.5, 1],
                   }}
                   style={{
-                    backfaceVisibility: 'hidden',
                     transformStyle: 'preserve-3d',
-                    willChange: 'transform, filter',
+                    transformOrigin: 'center center',
+                    willChange: 'transform',
                   }}
                 >
-                  <div className={`absolute inset-0 h-full w-full overflow-hidden rounded-[2px] bg-neutral-300 [backface-visibility:hidden] ${absDistance < 0.08 ? 'shadow-[0_24px_32px_-14px_rgba(0,0,0,0.72)] ring-1 ring-white/90' : 'shadow-[0_16px_20px_-15px_rgba(0,0,0,0.78)]'}`}>
+                  <div
+                    className={`absolute inset-0 h-full w-full overflow-hidden rounded-[2px] bg-neutral-300 ${absDistance < 0.08 ? 'shadow-[0_24px_32px_-14px_rgba(0,0,0,0.72)] ring-1 ring-white/90' : 'shadow-[0_16px_20px_-15px_rgba(0,0,0,0.78)]'}`}
+                    style={{
+                      backfaceVisibility: 'hidden',
+                      WebkitBackfaceVisibility: 'hidden',
+                      transform: 'rotateY(0deg) translateZ(1px)',
+                    }}
+                  >
                     {renderCoverArtwork(album, absDistance < 0.08)}
                     <div className={`absolute inset-0 pointer-events-none ${absDistance < 0.08 ? 'bg-[linear-gradient(110deg,rgba(255,255,255,0.26)_0%,rgba(255,255,255,0.04)_34%,rgba(0,0,0,0.08)_100%)]' : 'bg-black/10'}`} />
                   </div>
-                  {isSelectedAlbum && (
-                    <div
-                      className="absolute inset-0 overflow-hidden rounded-[2px] bg-gradient-to-br from-neutral-100 to-neutral-300 p-2 text-neutral-900 shadow-[0_24px_32px_-14px_rgba(0,0,0,0.72)] ring-1 ring-white/90 [transform:rotateY(180deg)] [backface-visibility:hidden]"
-                    >
-                      <div className="truncate text-[10px] font-black leading-tight">{album.title}</div>
-                      <div className="mt-1 h-px bg-neutral-400/70" />
-                      <div className="mt-1 space-y-0.5">
-                        {(album.children || []).slice(0, 4).map((track, trackIndex) => (
-                          <div key={track.id} className="flex gap-1 text-[8px] font-bold leading-tight">
-                            <span className="w-2 shrink-0 text-neutral-500">{trackIndex + 1}</span>
-                            <span className="truncate">{track.title}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </motion.div>
                 <motion.div
                   className="absolute left-0 top-[122px] h-10 w-full overflow-hidden [transform:scaleY(-1)]"
@@ -435,14 +505,13 @@ export function Screen({
 
         <motion.div
           key={displayAlbum.id}
-          className="absolute inset-x-6 bottom-4 text-center"
+          className="absolute inset-x-7 bottom-0 z-[160] px-3 py-2 text-center [text-shadow:0_1px_1px_rgba(255,255,255,0.75)]"
           initial={{ opacity: 0, y: 5 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.16 }}
         >
           <div className="truncate text-[15px] font-black leading-tight text-neutral-950">{displayAlbum.title}</div>
           <div className="mt-1 truncate text-[11px] font-bold leading-tight text-neutral-700">{artist}</div>
-          <div className="mt-0.5 truncate text-[10px] font-bold uppercase leading-tight text-neutral-500">{songCount}</div>
         </motion.div>
       </div>
     );
