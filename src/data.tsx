@@ -1,9 +1,12 @@
-import { Song, MenuNode } from './types';
+import { Song, MenuNode, PlaybackMode, SleepTimerEndAction } from './types';
 import React from 'react';
-import { PlayCircle, Film, Image as ImageIcon, Mic, Settings, Shuffle, Clock, FileText, Calendar, Gamepad2, Info } from 'lucide-react';
+import { PlayCircle, Film, Image as ImageIcon, Radio as RadioIcon, Settings, Shuffle, Clock, FileText, Calendar, Info, Volume2, RefreshCw, RotateCcw } from 'lucide-react';
 import { LocalMusicTrack } from './native/localMusic';
+import { MediaLibraryItem } from './native/mediaLibrary';
+import { RadioStation, RadioStatus } from './native/radio';
 import { AppleMusicPlaylist, AppleMusicSong } from './services/appleMusic';
 import { SpotifyPlaylist, SpotifyPlaylistTrack, SpotifyShortcut, SpotifyTrack } from './services/spotify';
+import { LOCALE_OPTIONS, Locale, localeLabel, normalizeLocale, t } from './i18n';
 
 export const DUMMY_SONGS: Song[] = [
   {
@@ -90,7 +93,118 @@ export interface LocalMusicMenuState {
   currentTrack?: LocalMusicTrack;
   continuationMode?: 'album' | 'library';
   isScanning?: boolean;
+  uiSoundVolume?: number;
+  autoScan?: boolean;
+  playbackMode?: PlaybackMode;
+  photos?: MediaLibraryItem[];
+  videos?: MediaLibraryItem[];
+  mediaStatus?: string;
+  mediaMessage?: string;
+  isMediaScanning?: boolean;
+  radioStatus?: RadioStatus;
+  radioStations?: RadioStation[];
+  radioPresets?: RadioStation[];
+  radioMessage?: string;
+  isRadioWorking?: boolean;
+  contacts?: ContactEntry[];
+  notes?: NoteEntry[];
+  noteDraft?: NoteEntry;
+  calendarEvents?: CalendarEventEntry[];
+  calendarFocusDate?: string;
+  sleepTimer?: SleepTimerMenuState;
+  mainMenuEnabled?: Record<string, boolean>;
+  mainMenuOrder?: string[];
+  mainMenuSettingsOrder?: string[];
+  mainMenuReorderKey?: string;
+  backlightTimer?: string;
+  audiobooksEnabled?: boolean;
+  eqPreset?: string;
+  compilationsEnabled?: boolean;
+  language?: Locale;
 }
+
+export interface ContactEntry {
+  id: string;
+  name: string;
+  phone?: string;
+  email?: string;
+}
+
+export interface NoteEntry {
+  id: string;
+  title: string;
+  body: string;
+  updatedAt: number;
+  pinned?: boolean;
+  attachedSongTitle?: string;
+  attachedSongArtist?: string;
+  isDraft?: boolean;
+}
+
+export interface CalendarEventEntry {
+  id: string;
+  date: string;
+  time?: string;
+  title: string;
+  notes?: string;
+  updatedAt: number;
+}
+
+export interface SleepTimerMenuState {
+  status: 'off' | 'running' | 'completed';
+  startedAt?: number;
+  durationMs?: number;
+  endAction: SleepTimerEndAction;
+}
+
+export const MAIN_MENU_ITEM_ORDER = [
+  'music',
+  'videos',
+  'photos',
+  'radio',
+  'notes',
+  'ex_clock',
+  'ex_contacts',
+  'ex_calendar',
+  'ex_stopwatch',
+  'ex_screen_lock',
+  'shuffle_songs',
+] as const;
+
+export type MainMenuItemKey = typeof MAIN_MENU_ITEM_ORDER[number];
+
+const DEFAULT_MAIN_MENU_ENABLED: Record<MainMenuItemKey, boolean> = {
+  music: true,
+  videos: true,
+  photos: true,
+  radio: true,
+  notes: true,
+  ex_clock: false,
+  ex_contacts: false,
+  ex_calendar: false,
+  ex_stopwatch: false,
+  ex_screen_lock: false,
+  shuffle_songs: true,
+};
+
+export const normalizeMainMenuOrder = (order?: string[]) => {
+  const valid = new Set<string>(MAIN_MENU_ITEM_ORDER);
+  const seen = new Set<string>();
+  const normalized = (order || []).filter(key => {
+    if (!valid.has(key) || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return [
+    ...normalized,
+    ...MAIN_MENU_ITEM_ORDER.filter(key => !seen.has(key)),
+  ];
+};
+
+export const isMainMenuItemEnabled = (
+  enabled: Record<string, boolean> | undefined,
+  key: string,
+) => enabled?.[key] ?? DEFAULT_MAIN_MENU_ENABLED[key as MainMenuItemKey] ?? false;
 
 const songToMenuNode = (song: Song): MenuNode => ({
   id: `song_${song.id}`,
@@ -138,9 +252,9 @@ const normalizeLocalAlbumKey = (track: LocalMusicTrack) => (
   `${(track.album || 'Unknown Album').trim().toLowerCase()}|${(track.artist || 'Unknown Artist').trim().toLowerCase()}`
 );
 
-const localTrackToMenuNode = (track: LocalMusicTrack): MenuNode => ({
+const localTrackToMenuNode = (track: LocalMusicTrack, locale: Locale = 'en'): MenuNode => ({
   id: stableNodeId('local_track', track.id || track.uri || `${track.title}|${track.artist}|${track.album}`),
-  title: track.title || 'Unknown Title',
+  title: track.title || t(locale, 'title'),
   type: 'songDetail',
   previewImage: track.artworkUri,
   localTrack: track,
@@ -161,7 +275,7 @@ const sortLocalTracks = (tracks: LocalMusicTrack[]) => [...tracks].sort((left, r
   return (left.title || '').localeCompare(right.title || '', undefined, { sensitivity: 'base' });
 });
 
-const generateLocalCoverFlowNode = (tracks: LocalMusicTrack[]): MenuNode => {
+const generateLocalCoverFlowNode = (tracks: LocalMusicTrack[], locale: Locale): MenuNode => {
   const albumMap = new Map<string, LocalMusicTrack[]>();
 
   sortLocalTracks(tracks).forEach(track => {
@@ -190,17 +304,17 @@ const generateLocalCoverFlowNode = (tracks: LocalMusicTrack[]): MenuNode => {
           firstTrack.artist || 'Unknown Artist',
           `${albumTracks.length} song${albumTracks.length === 1 ? '' : 's'}`,
         ],
-        children: albumTracks.map(localTrackToMenuNode),
+        children: albumTracks.map(track => localTrackToMenuNode(track, locale)),
       };
     });
 
   return {
     id: 'local_cover_flow',
-    title: 'Cover Flow',
+    title: t(locale, 'coverFlow'),
     type: 'coverFlow',
     detailLines: albums.length
       ? [`${albums.length} albums`, 'Browse local albums.']
-      : ['Scan local music first.'],
+      : [t(locale, 'scanLocalMusicFirst')],
     children: albums,
   };
 };
@@ -210,6 +324,7 @@ const groupLocalTracks = (
   idPrefix: string,
   getKey: (track: LocalMusicTrack) => string,
   getTitle: (track: LocalMusicTrack) => string,
+  locale: Locale,
 ): MenuNode[] => {
   const groups = new Map<string, LocalMusicTrack[]>();
 
@@ -228,11 +343,12 @@ const groupLocalTracks = (
       type: 'menu',
       previewImage: groupTracks.find(track => Boolean(track.artworkUri))?.artworkUri,
       detailLines: [`${groupTracks.length} song${groupTracks.length === 1 ? '' : 's'}`],
-      children: groupTracks.map(localTrackToMenuNode),
+      children: groupTracks.map(track => localTrackToMenuNode(track, locale)),
     }));
 };
 
 const generateLocalMusicChildren = (state: LocalMusicMenuState = {}): MenuNode[] => {
+  const locale = normalizeLocale(state.language);
   const tracks = sortLocalTracks(state.tracks || []);
   const statusTone = state.status === 'success' || state.status === 'ready'
     ? 'success'
@@ -241,35 +357,35 @@ const generateLocalMusicChildren = (state: LocalMusicMenuState = {}): MenuNode[]
   return [
     {
       id: 'now_playing_menu',
-      title: 'Now Playing',
+      title: t(locale, 'nowPlaying'),
       type: 'nowPlaying',
       detailLines: [
-        state.currentTrack ? `${state.currentTrack.title} - ${state.currentTrack.artist}` : 'No local song playing.',
-        'Select switches playback mode.',
+        state.currentTrack ? `${state.currentTrack.title} - ${state.currentTrack.artist}` : t(locale, 'noLocalSongPlaying'),
+        t(locale, 'selectSwitchesPlaybackMode'),
       ],
     },
-    generateLocalCoverFlowNode(tracks),
+    generateLocalCoverFlowNode(tracks, locale),
     {
       id: 'local_all_songs',
-      title: 'All Songs',
+      title: t(locale, 'allSongs'),
       type: 'menu',
       detailLines: [
         `${tracks.length} local songs`,
         'Songs found on this Android device.',
       ],
       children: tracks.length
-        ? tracks.map(localTrackToMenuNode)
+        ? tracks.map(track => localTrackToMenuNode(track, locale))
         : [{
             id: 'local_no_all_songs',
-            title: 'No Songs',
+            title: t(locale, 'noSongs'),
             type: 'localMusicStatus',
             statusTone: 'warning',
-            detailLines: ['Select Scan first.'],
+            detailLines: [t(locale, 'scanFirst')],
           }],
     },
     {
       id: 'local_artists',
-      title: 'Artists',
+      title: t(locale, 'artists'),
       type: 'menu',
       children: tracks.length
         ? groupLocalTracks(
@@ -277,18 +393,19 @@ const generateLocalMusicChildren = (state: LocalMusicMenuState = {}): MenuNode[]
             'local_artist',
             track => track.artist || 'Unknown Artist',
             track => track.artist || 'Unknown Artist',
+            locale,
           )
         : [{
             id: 'local_no_artists',
-            title: 'No Artists',
+            title: t(locale, 'noArtists'),
             type: 'localMusicStatus',
             statusTone: 'warning',
-            detailLines: ['Select Scan first.'],
+            detailLines: [t(locale, 'scanFirst')],
           }],
     },
     {
       id: 'local_albums',
-      title: 'Albums',
+      title: t(locale, 'albums'),
       type: 'menu',
       children: tracks.length
         ? groupLocalTracks(
@@ -296,18 +413,19 @@ const generateLocalMusicChildren = (state: LocalMusicMenuState = {}): MenuNode[]
             'local_album',
             track => normalizeLocalAlbumKey(track),
             track => track.album || 'Unknown Album',
+            locale,
           )
         : [{
             id: 'local_no_albums',
-            title: 'No Albums',
+            title: t(locale, 'noAlbums'),
             type: 'localMusicStatus',
             statusTone: 'warning',
-            detailLines: ['Select Scan first.'],
+            detailLines: [t(locale, 'scanFirst')],
           }],
     },
     {
       id: 'local_scan',
-      title: state.isScanning ? 'Scanning...' : 'Scan',
+      title: state.isScanning ? t(locale, 'scanning') : t(locale, 'scan'),
       type: 'localMusicStatus',
       action: 'local_music_scan',
       isLoading: state.isScanning,
@@ -316,19 +434,6 @@ const generateLocalMusicChildren = (state: LocalMusicMenuState = {}): MenuNode[]
         state.message || 'Scan local audio files.',
         `${tracks.length} songs cached`,
         state.musicDirectory ? `App folder: ${state.musicDirectory}` : 'Reads Android audio library and app Music folder.',
-      ],
-    },
-    {
-      id: 'local_continuation',
-      title: `Continue: ${state.continuationMode === 'album' ? 'Album' : 'Library'}`,
-      type: 'localMusicStatus',
-      action: 'local_toggle_continuation',
-      statusTone: 'neutral',
-      detailLines: [
-        state.continuationMode === 'album'
-          ? 'After an album or artist list ends, playback stops in that context.'
-          : 'After an album or artist list ends, playback continues through the local library.',
-        'Select toggles Album / Library.',
       ],
     },
   ];
@@ -751,107 +856,907 @@ export const generateSpotifyMenu = (spotify: SpotifyMenuState = {}): MenuNode =>
 });
 
 export const generateMusicMenu = (local: LocalMusicMenuState = {}): MenuNode => {
+  const locale = normalizeLocale(local.language);
   return {
     id: 'music',
-    title: 'Music',
+    title: t(locale, 'music'),
     type: 'menu',
     previewIcon: <PlayCircle className="w-16 h-16 text-green-500" />,
     children: generateLocalMusicChildren(local)
   };
 };
 
-export const generateMenuRoot = (local: LocalMusicMenuState = {}): MenuNode => ({
-  id: 'root',
-  title: 'iPod',
-  type: 'menu',
+const mediaItemToNode = (item: MediaLibraryItem): MenuNode => ({
+  id: item.id,
+  title: item.title || (item.kind === 'photo' ? 'Photo' : 'Video'),
+  type: item.kind === 'photo' ? 'photoDetail' : 'videoDetail',
+  previewImage: item.thumbnailUri || item.uri,
+  mediaItem: item,
+  detailLines: [
+    item.bucket || 'Android MediaStore',
+    item.kind === 'video' && item.duration ? `${Math.round(item.duration / 1000)} sec` : `${item.width || 0} x ${item.height || 0}`,
+    item.mimeType || item.uri,
+  ],
+});
+
+const generateVideosMenu = (local: LocalMusicMenuState = {}): MenuNode => {
+  const locale = normalizeLocale(local.language);
+  const videos = local.videos || [];
+  const tone = local.mediaStatus === 'success'
+    ? 'success'
+    : local.mediaStatus === 'error' || local.mediaStatus === 'needsPermission' ? 'error' : 'warning';
+
+  return {
+    id: 'videos',
+    title: t(locale, 'videos'),
+    type: 'menu',
+    previewIcon: <Film className="w-16 h-16 text-purple-500" />,
+    detailLines: [`${videos.length} local videos`, local.mediaMessage || 'Reads Android MediaStore videos.'],
+    children: [
+      {
+        id: 'v_all',
+        title: t(locale, 'videos'),
+        type: 'menu',
+        previewImage: videos[0]?.thumbnailUri,
+        detailLines: [
+          `${videos.length} videos`,
+          videos[0]?.title ? `Latest: ${videos[0].title}` : local.mediaMessage || 'Open the local video library.',
+        ],
+        children: videos.length
+          ? videos.map(mediaItemToNode)
+          : [{
+              id: 'v_no_videos',
+              title: t(locale, 'noVideos'),
+              type: 'localMusicStatus',
+              statusTone: tone,
+              detailLines: [local.mediaMessage || 'No local videos found.'],
+            }],
+      },
+      {
+        id: 'v_scan',
+        title: local.isMediaScanning ? t(locale, 'scanning') : `${t(locale, 'scan')} ${t(locale, 'videos')}`,
+        type: 'localMusicStatus',
+        action: 'media_scan',
+        isLoading: local.isMediaScanning,
+        statusTone: tone,
+        detailLines: [
+          local.mediaMessage || 'Refresh Android image/video library.',
+          `${videos.length} videos cached`,
+        ],
+      },
+    ],
+  };
+};
+
+const generatePhotosMenu = (local: LocalMusicMenuState = {}): MenuNode => {
+  const locale = normalizeLocale(local.language);
+  const photos = local.photos || [];
+  const tone = local.mediaStatus === 'success'
+    ? 'success'
+    : local.mediaStatus === 'error' || local.mediaStatus === 'needsPermission' ? 'error' : 'warning';
+
+  return {
+    id: 'photos',
+    title: t(locale, 'photos'),
+    type: 'menu',
+    previewIcon: <ImageIcon className="w-16 h-16 text-orange-500" />,
+    detailLines: [`${photos.length} local photos`, local.mediaMessage || 'Reads Android MediaStore images.'],
+    children: [
+      {
+        id: 'p_library',
+        title: t(locale, 'photoLibrary'),
+        type: 'photoGrid',
+        previewImage: photos[0]?.thumbnailUri || photos[0]?.uri,
+        detailLines: [
+          `${photos.length} photos`,
+          photos[0]?.bucket ? `Latest album: ${photos[0].bucket}` : local.mediaMessage || 'Open the local photo grid.',
+        ],
+        children: photos.length
+          ? photos.map(mediaItemToNode)
+          : [{
+              id: 'p_no_photos',
+              title: t(locale, 'noPhotos'),
+              type: 'localMusicStatus',
+              statusTone: tone,
+              detailLines: [local.mediaMessage || 'No local photos found.'],
+            }],
+      },
+      {
+        id: 'p_scan',
+        title: local.isMediaScanning ? t(locale, 'scanning') : `${t(locale, 'scan')} ${t(locale, 'photos')}`,
+        type: 'localMusicStatus',
+        action: 'media_scan',
+        isLoading: local.isMediaScanning,
+        statusTone: tone,
+        detailLines: [
+          local.mediaMessage || 'Refresh Android image/video library.',
+          `${photos.length} photos cached`,
+        ],
+      },
+    ],
+  };
+};
+
+const radioTone = (status?: RadioStatus): 'neutral' | 'success' | 'warning' | 'error' => {
+  if (!status) return 'warning';
+  if (!status.wiredHeadsetConnected || !status.radioHardwareFeaturePresent || !status.radioBackendAvailable) return 'error';
+  return status.isPlaying ? 'success' : 'neutral';
+};
+
+const radioStatusLines = (local: LocalMusicMenuState = {}) => {
+  const status = local.radioStatus;
+  return [
+    status?.message || local.radioMessage || 'Checking radio hardware...',
+    `Wired headset: ${status?.wiredHeadsetConnected ? 'connected' : 'required'}`,
+    `Broadcast hardware: ${status?.radioHardwareFeaturePresent ? 'present' : 'missing'}`,
+    `Radio backend: ${status?.radioBackendAvailable ? 'available' : 'unavailable'}`,
+  ];
+};
+
+const radioStationNode = (station: RadioStation, preset = false): MenuNode => ({
+  id: `${preset ? 'radio_preset' : 'radio_station'}_${station.frequency.toFixed(1).replace('.', '_')}`,
+  title: station.title || `${station.frequency.toFixed(1)} MHz`,
+  type: 'radioTune',
+  action: 'radio_tune',
+  radioFrequency: station.frequency,
+  detailLines: [`${station.frequency.toFixed(1)} MHz`, preset ? 'Saved preset' : 'Scanned station'],
+});
+
+const generateRadioMenu = (local: LocalMusicMenuState = {}): MenuNode => {
+  const locale = normalizeLocale(local.language);
+  const status = local.radioStatus;
+  const stations = local.radioStations || [];
+  const presets = local.radioPresets || [];
+  const frequency = status?.frequency;
+  const tuneChildren: MenuNode[] = [
+    { id: 'radio_manual_875', title: '87.5 MHz', type: 'radioTune', action: 'radio_tune', radioFrequency: 87.5 },
+    { id: 'radio_manual_900', title: '90.0 MHz', type: 'radioTune', action: 'radio_tune', radioFrequency: 90.0 },
+    { id: 'radio_manual_945', title: '94.5 MHz', type: 'radioTune', action: 'radio_tune', radioFrequency: 94.5 },
+    { id: 'radio_manual_981', title: '98.1 MHz', type: 'radioTune', action: 'radio_tune', radioFrequency: 98.1 },
+    { id: 'radio_manual_1067', title: '106.7 MHz', type: 'radioTune', action: 'radio_tune', radioFrequency: 106.7 },
+  ];
+
+  return {
+    id: 'radio',
+    title: t(locale, 'radio'),
+    type: 'menu',
+    previewIcon: <RadioIcon className="w-16 h-16 text-purple-600" />,
+    detailLines: radioStatusLines(local),
+    children: [
+      {
+        id: 'radio_now_playing',
+        title: t(locale, 'nowPlaying'),
+        type: 'radioNowPlaying',
+        detailLines: radioStatusLines(local),
+      },
+      {
+        id: 'radio_stations',
+        title: t(locale, 'stations'),
+        type: 'radioStationList',
+        children: stations.length
+          ? stations.map(station => radioStationNode(station))
+          : [{
+              id: 'radio_no_stations',
+              title: t(locale, 'noStations'),
+              type: 'radioStatus',
+              statusTone: radioTone(status),
+              detailLines: ['Run Scan Stations when a real backend is available.'],
+            }],
+      },
+      {
+        id: 'radio_scan',
+        title: local.isRadioWorking ? t(locale, 'scanning') : `${t(locale, 'scan')} ${t(locale, 'stations')}`,
+        type: 'radioStatus',
+        action: 'radio_scan',
+        isLoading: local.isRadioWorking,
+        statusTone: radioTone(status),
+        detailLines: radioStatusLines(local),
+      },
+      {
+        id: 'radio_manual_tune',
+        title: t(locale, 'manualTune'),
+        type: 'menu',
+        children: tuneChildren,
+      },
+      {
+        id: 'radio_presets',
+        title: t(locale, 'presets'),
+        type: 'menu',
+        children: [
+          {
+            id: 'radio_save_preset',
+            title: frequency ? `${t(locale, 'save')} ${frequency.toFixed(1)}` : t(locale, 'savePreset'),
+            type: 'radioStatus',
+            action: 'radio_save_preset',
+            statusTone: radioTone(status),
+            detailLines: frequency ? [`${t(locale, 'save')} ${frequency.toFixed(1)} MHz`] : [t(locale, 'tuneFrequencyFirst')],
+          },
+          ...(
+            presets.length
+              ? presets.flatMap(preset => [
+                  radioStationNode(preset, true),
+                  {
+                    id: `radio_delete_preset_${preset.frequency.toFixed(1).replace('.', '_')}`,
+                    title: `${t(locale, 'delete')} ${preset.frequency.toFixed(1)}`,
+                    type: 'radioStatus' as const,
+                    action: 'radio_delete_preset' as const,
+                    radioFrequency: preset.frequency,
+                    detailLines: [`${t(locale, 'delete')} ${preset.frequency.toFixed(1)} MHz`],
+                  },
+                ])
+              : [{
+                  id: 'radio_no_presets',
+                  title: t(locale, 'noPresets'),
+                  type: 'radioStatus' as const,
+                  statusTone: 'warning' as const,
+                  detailLines: ['Saved presets appear here.'],
+                }]
+          ),
+        ],
+      },
+      {
+        id: 'radio_status',
+        title: `${t(locale, 'radio')} ${t(locale, 'status')}`,
+        type: 'radioStatus',
+        statusTone: radioTone(status),
+        detailLines: radioStatusLines(local),
+      },
+    ],
+  };
+};
+
+const formatPercent = (value = 0) => `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%`;
+
+const playbackModeLabel = (mode: PlaybackMode = 'sequential', locale: Locale = 'en') => {
+  switch (mode) {
+    case 'shuffle':
+      return t(locale, 'shuffle');
+    case 'repeatAll':
+      return t(locale, 'repeatAll');
+    case 'repeatOne':
+      return t(locale, 'repeatOne');
+    case 'sequential':
+    default:
+      return t(locale, 'sequential');
+  }
+};
+
+const enabledLabel = (enabled = true, locale: Locale = 'en') => enabled ? t(locale, 'on') : t(locale, 'off');
+
+const backlightLabel = (value: string | undefined, locale: Locale) => (
+  value === 'Always On' ? t(locale, 'alwaysOn') : value || '1m'
+);
+
+const generateMainMenuSettings = (local: LocalMusicMenuState = {}): MenuNode => {
+  const locale = normalizeLocale(local.language);
+  const titles: Record<string, string> = {
+    music: t(locale, 'music'),
+    videos: t(locale, 'videos'),
+    photos: t(locale, 'photos'),
+    radio: t(locale, 'radio'),
+    notes: t(locale, 'notes'),
+    ex_clock: t(locale, 'clock'),
+    ex_contacts: t(locale, 'contacts'),
+    ex_calendar: t(locale, 'calendar'),
+    ex_stopwatch: t(locale, 'stopwatch'),
+    ex_screen_lock: t(locale, 'screenLock'),
+    shuffle_songs: t(locale, 'shuffleSongs'),
+  };
+  const order = normalizeMainMenuOrder(local.mainMenuSettingsOrder || local.mainMenuOrder);
+
+  return {
+    id: 'set_main_menu',
+    title: t(locale, 'mainMenu'),
+    type: 'menu',
+    children: order.map(key => {
+      const title = titles[key] || key;
+      const enabled = isMainMenuItemEnabled(local.mainMenuEnabled, key);
+      const reorderActive = local.mainMenuReorderKey === key;
+      return {
+      id: `set_main_menu_${key}`,
+      title,
+      type: 'localMusicStatus',
+      action: 'settings_toggle_main_menu_item',
+      settingKey: key,
+      switchValue: enabled,
+      reorderActive,
+      statusTone: reorderActive ? 'success' : 'neutral',
+      detailLines: [
+        t(locale, 'visibilityControl', { name: title }),
+        reorderActive ? t(locale, 'moveWithWheel') : t(locale, 'selectReorder'),
+        reorderActive ? t(locale, 'selectApplyOrder') : t(locale, 'playPauseToggles'),
+      ],
+    } satisfies MenuNode;
+    }),
+  };
+};
+
+const generateContactsMenu = (local: LocalMusicMenuState = {}): MenuNode => {
+  const locale = normalizeLocale(local.language);
+  const contacts = local.contacts || [];
+  return {
+    id: 'ex_contacts',
+    title: t(locale, 'contacts'),
+    type: 'contactList',
+    children: [
+      {
+        id: 'contact_add',
+        title: t(locale, 'newContact'),
+        type: 'localMusicStatus',
+        action: 'contact_add',
+        statusTone: 'neutral',
+        detailLines: ['Creates a local SquarePod contact.'],
+      },
+      ...contacts.map(contact => ({
+        id: `contact_${contact.id}`,
+        title: contact.name,
+        type: 'contactDetail' as const,
+        contactId: contact.id,
+        detailLines: [
+          contact.phone || t(locale, 'noPhone'),
+          contact.email || t(locale, 'noEmail'),
+        ],
+        children: [
+          {
+            id: `contact_edit_${contact.id}`,
+            title: t(locale, 'editContact'),
+            type: 'localMusicStatus' as const,
+            action: 'contact_edit' as const,
+            contactId: contact.id,
+            statusTone: 'neutral' as const,
+            detailLines: [t(locale, 'updateContact', { name: contact.name })],
+          },
+          {
+            id: `contact_delete_${contact.id}`,
+            title: t(locale, 'deleteContact'),
+            type: 'localMusicStatus' as const,
+            action: 'contact_delete' as const,
+            contactId: contact.id,
+            statusTone: 'warning' as const,
+            detailLines: [`${t(locale, 'deleteContact')}: ${contact.name}`],
+          },
+        ],
+      })),
+    ],
+  };
+};
+
+const sleepActionLabel = (action: SleepTimerEndAction) => {
+  switch (action) {
+    case 'fadePause':
+      return 'Fade Out + Pause';
+    case 'lock':
+      return 'Lock Screen';
+    case 'pause':
+    default:
+      return 'Pause Playback';
+  }
+};
+
+const sleepRemainingMs = (timer?: SleepTimerMenuState) => {
+  if (!timer || timer.status !== 'running' || !timer.startedAt || !timer.durationMs) return 0;
+  return Math.max(0, timer.startedAt + timer.durationMs - Date.now());
+};
+
+const formatDurationLabel = (durationMs: number) => {
+  const minutes = Math.round(durationMs / 60000);
+  return `${minutes} min`;
+};
+
+const generateClockMenu = (local: LocalMusicMenuState = {}): MenuNode => {
+  const locale = normalizeLocale(local.language);
+  const timer = local.sleepTimer;
+  const remaining = sleepRemainingMs(timer);
+  const timerRunning = timer?.status === 'running';
+  const timerCompleted = timer?.status === 'completed';
+  const timerLines = timerRunning
+    ? [`${Math.ceil(remaining / 60000)} min left`, `Ends with: ${sleepActionLabel(timer.endAction)}`]
+    : timerCompleted
+      ? ['Timer expired.', `Ended with: ${sleepActionLabel(timer.endAction)}`]
+      : ['Select a duration.', `Ends with: ${sleepActionLabel(timer?.endAction || 'pause')}`];
+
+  return {
+    id: 'ex_clock',
+    title: t(locale, 'clock'),
+    type: 'menu',
+    previewIcon: <Clock className="w-16 h-16" />,
+    detailLines: timerLines,
+    children: [
+      {
+        id: timerRunning ? 'sleep_timer_running' : timerCompleted ? 'sleep_timer_completed' : 'sleep_timer',
+        title: timerRunning ? 'Sleep Timer: On' : timerCompleted ? 'Sleep Timer: Done' : 'Sleep Timer',
+        type: 'clock',
+        statusTone: timerRunning ? 'success' : timerCompleted ? 'warning' : 'neutral',
+        detailLines: timerLines,
+        children: [
+          ...(timerRunning || timerCompleted ? [
+            {
+              id: 'sleep_timer_cancel',
+              title: timerCompleted ? 'Clear Timer' : 'Cancel Timer',
+              type: 'localMusicStatus' as const,
+              action: 'sleep_timer_cancel' as const,
+              statusTone: 'warning' as const,
+              detailLines: ['Stop the timer without changing playback.'],
+            },
+            {
+              id: 'sleep_timer_end_now',
+              title: 'End Now',
+              type: 'localMusicStatus' as const,
+              action: 'sleep_timer_end_now' as const,
+              statusTone: 'warning' as const,
+              detailLines: [`Run action now: ${sleepActionLabel(timer.endAction)}.`],
+            },
+          ] : [
+            ...[15, 30, 45, 60].map(minutes => ({
+              id: `sleep_timer_${minutes}`,
+              title: `${minutes} min`,
+              type: 'localMusicStatus' as const,
+              action: 'sleep_timer_start' as const,
+              sleepTimerDurationMs: minutes * 60000,
+              sleepTimerMode: 'duration' as const,
+              statusTone: 'neutral' as const,
+              detailLines: [`Start a ${minutes} minute sleep timer.`, `Ends with: ${sleepActionLabel(timer?.endAction || 'pause')}`],
+            })),
+          ]),
+          {
+            id: 'sleep_timer_action',
+            title: `End Action: ${sleepActionLabel(timer?.endAction || 'pause')}`,
+            type: 'localMusicStatus',
+            action: 'sleep_timer_cycle_action',
+            statusTone: 'neutral',
+            detailLines: ['Select cycles Pause / Fade Out + Pause / Lock Screen.'],
+          },
+        ],
+      },
+      { id: 'clk_local', title: 'Local Time', type: 'clock' },
+      { id: 'clk_new_york', title: 'New York', type: 'clock' },
+      { id: 'clk_london', title: 'London', type: 'clock' },
+      { id: 'clk_tokyo', title: 'Tokyo', type: 'clock' },
+    ],
+  };
+};
+
+const generateNotesMenu = (local: LocalMusicMenuState = {}, id = 'notes'): MenuNode => {
+  const locale = normalizeLocale(local.language);
+  const draft = local.noteDraft;
+  const notes = [...(local.notes || [])].sort((left, right) => {
+    if (left.pinned !== right.pinned) return left.pinned ? -1 : 1;
+    return right.updatedAt - left.updatedAt;
+  });
+  return {
+    id,
+    title: t(locale, 'notes'),
+    type: 'noteList',
+    previewIcon: <FileText className="w-16 h-16" />,
+    children: [
+      {
+        id: 'note_quick',
+        title: draft ? 'Continue Draft' : 'Quick Note',
+        type: 'localMusicStatus',
+        action: 'note_quick',
+        statusTone: draft ? 'warning' : 'neutral',
+        detailLines: draft ? [draft.title || 'Unsaved draft', 'Select to continue.'] : ['Create a note, optionally attached to the current song.'],
+      },
+      {
+        id: 'note_add',
+        title: t(locale, 'newNote'),
+        type: 'localMusicStatus',
+        action: 'note_add',
+        statusTone: 'neutral',
+        detailLines: ['Create a clean note without song context.'],
+      },
+      ...(draft ? [{
+        id: 'note_discard_draft',
+        title: 'Discard Draft',
+        type: 'localMusicStatus' as const,
+        action: 'note_discard_draft' as const,
+        statusTone: 'warning' as const,
+        detailLines: ['Delete the unsaved draft.'],
+      }] : []),
+      ...notes.map(note => ({
+        id: `note_${note.id}`,
+        title: `${note.pinned ? '★ ' : ''}${note.title}`,
+        type: 'noteDetail' as const,
+        noteId: note.id,
+        detailLines: [
+          note.attachedSongTitle ? `${note.attachedSongArtist || 'Now Playing'} - ${note.attachedSongTitle}` : '',
+          note.body,
+          t(locale, 'updated', { date: new Date(note.updatedAt).toLocaleDateString() }),
+        ].filter(Boolean),
+        children: [
+          {
+            id: `note_edit_${note.id}`,
+            title: t(locale, 'editNote'),
+            type: 'localMusicStatus' as const,
+            action: 'note_edit' as const,
+            noteId: note.id,
+            statusTone: 'neutral' as const,
+            detailLines: [t(locale, 'updateNote', { name: note.title })],
+          },
+          {
+            id: `note_delete_${note.id}`,
+            title: t(locale, 'deleteNote'),
+            type: 'noteDetail' as const,
+            noteId: note.id,
+            statusTone: 'warning' as const,
+            detailLines: ['Select again to confirm delete.', note.title],
+            children: [{
+              id: `note_delete_confirm_${note.id}`,
+              title: 'Confirm Delete',
+              type: 'localMusicStatus' as const,
+              action: 'note_delete_confirm' as const,
+              noteId: note.id,
+              statusTone: 'warning' as const,
+              detailLines: ['This cannot be undone.'],
+            }],
+          },
+        ],
+      })),
+    ],
+  };
+};
+
+const formatEventDate = (date: string) => {
+  const parsed = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return date;
+  return parsed.toLocaleDateString();
+};
+
+const todayInputValueFromDate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const todayKey = () => todayInputValueFromDate(new Date());
+
+const calendarEventToNode = (event: CalendarEventEntry, locale: Locale): MenuNode => ({
+  id: `calendar_event_${event.id}`,
+  title: event.time ? `${event.time} ${event.title}` : event.title,
+  type: 'calendarEventDetail',
+  calendarEventId: event.id,
+  calendarEventDate: event.date,
+  calendarEventTime: event.time,
+  detailLines: [
+    formatEventDate(event.date),
+    event.time || t(locale, 'allDay'),
+    event.notes || t(locale, 'noNotes'),
+    t(locale, 'updated', { date: new Date(event.updatedAt).toLocaleDateString() }),
+  ],
   children: [
-    generateMusicMenu(local),
     {
-      id: 'videos',
-      title: 'Videos',
-      type: 'menu',
-      previewIcon: <Film className="w-16 h-16 text-purple-500" />,
-      children: [
-        { id: 'v_playlists', title: 'Video Playlists', type: 'menu', children: [] },
-        { id: 'v_movies', title: 'Movies', type: 'menu', children: [] },
-        { id: 'v_music_videos', title: 'Music Videos', type: 'menu', children: [] },
-        { id: 'v_tv_shows', title: 'TV Shows', type: 'menu', children: [] },
-        { id: 'v_podcasts', title: 'Video Podcasts', type: 'menu', children: [] },
-      ]
+      id: `calendar_event_edit_${event.id}`,
+      title: t(locale, 'editEvent'),
+      type: 'localMusicStatus',
+      action: 'calendar_event_edit',
+      calendarEventId: event.id,
+      statusTone: 'neutral',
+      detailLines: [t(locale, 'updateEvent', { name: event.title })],
     },
     {
-      id: 'photos',
-      title: 'Photos',
-      type: 'menu',
-      previewIcon: <ImageIcon className="w-16 h-16 text-orange-500" />,
-      children: [
-        { id: 'p_slideshow', title: 'Slideshow Settings', type: 'menu', children: [] },
-        { id: 'p_roll', title: 'Camera Roll', type: 'photos' },
-        { id: 'p_library', title: 'Photo Library', type: 'photos' },
-      ]
+      id: `calendar_event_delete_${event.id}`,
+      title: t(locale, 'deleteEvent'),
+      type: 'calendarEventDetail',
+      calendarEventId: event.id,
+      statusTone: 'warning',
+      detailLines: ['Select again to confirm delete.', event.title],
+      children: [{
+        id: `calendar_event_delete_confirm_${event.id}`,
+        title: 'Confirm Delete',
+        type: 'localMusicStatus',
+        action: 'calendar_event_delete_confirm',
+        calendarEventId: event.id,
+        statusTone: 'warning',
+        detailLines: ['This cannot be undone.'],
+      }],
     },
-    {
-      id: 'podcasts',
-      title: 'Podcasts',
-      type: 'menu',
-      previewIcon: <Mic className="w-16 h-16 text-purple-600" />,
-      children: [
-        { id: 'pod_1', title: 'Tech Talk Daily', type: 'podcasts' },
-        { id: 'pod_2', title: 'History Uncovered', type: 'podcasts' },
-        { id: 'pod_3', title: 'Comedy Hour', type: 'podcasts' },
-      ]
-    },
-    {
-      id: 'extras',
-      title: 'Extras',
-      type: 'menu',
-      children: [
-        { id: 'ex_clock', title: 'Clock', type: 'menu', previewIcon: <Clock className="w-16 h-16" />, children: [
-          { id: 'clk_new_york', title: 'New York', type: 'clock' },
-          { id: 'clk_london', title: 'London', type: 'clock' },
-          { id: 'clk_tokyo', title: 'Tokyo', type: 'clock' },
-        ] },
-        { id: 'ex_games', title: 'Games', type: 'menu', previewIcon: <Gamepad2 className="w-16 h-16" />, children: [
-          { id: 'game_brick', title: 'Brick', type: 'game_brick' },
-          { id: 'game_parachute', title: 'Parachute', type: 'placeholder' },
-          { id: 'game_solitaire', title: 'Solitaire', type: 'placeholder' },
-          { id: 'game_music_quiz', title: 'Music Quiz', type: 'placeholder' },
-        ] },
-        { id: 'ex_contacts', title: 'Contacts', type: 'placeholder', children: [] },
-        { id: 'ex_calendar', title: 'Calendar', type: 'calendar', previewIcon: <Calendar className="w-16 h-16" />, children: [] },
-        { id: 'ex_notes', title: 'Notes', type: 'placeholder', previewIcon: <FileText className="w-16 h-16" />, children: [] },
-        { id: 'ex_stopwatch', title: 'Stopwatch', type: 'stopwatch' },
-        { id: 'ex_screen_lock', title: 'Screen Lock', type: 'placeholder' },
-      ]
-    },
-    {
-      id: 'settings',
-      title: 'Settings',
-      type: 'menu',
-      previewIcon: <Settings className="w-16 h-16 text-gray-400" />,
-      children: [
-        { id: 'set_about', title: 'About', type: 'about', previewIcon: <Info className="w-16 h-16" /> },
-        { id: 'set_main_menu', title: 'Main Menu', type: 'placeholder' },
-        { id: 'set_shuffle', title: 'Shuffle', type: 'placeholder' },
-        { id: 'set_repeat', title: 'Repeat', type: 'placeholder' },
-        { id: 'set_backlight', title: 'Backlight Timer', type: 'placeholder' },
-        { id: 'set_audiobooks', title: 'Audiobooks', type: 'placeholder' },
-        { id: 'set_eq', title: 'EQ', type: 'placeholder' },
-        { id: 'set_compilations', title: 'Compilations', type: 'placeholder' },
-        { id: 'set_language', title: 'Language', type: 'placeholder' },
-        { id: 'set_legal', title: 'Legal', type: 'placeholder' },
-        { id: 'set_reset', title: 'Reset all settings', type: 'placeholder' },
-      ]
-    },
-    {
+  ],
+});
+
+const generateCalendarMenu = (local: LocalMusicMenuState = {}): MenuNode => {
+  const locale = normalizeLocale(local.language);
+  const now = local.calendarFocusDate ? new Date(`${local.calendarFocusDate}T00:00:00`) : new Date();
+  const today = todayKey();
+  const focusDate = todayInputValueFromDate(now);
+  const currentMonthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const allEvents = [...(local.calendarEvents || [])].sort((left, right) => {
+    const dateSort = left.date.localeCompare(right.date);
+    if (dateSort) return dateSort;
+    return (left.time || '').localeCompare(right.time || '');
+  });
+  const monthEvents = allEvents.filter(event => event.date.startsWith(currentMonthPrefix));
+  const todayEvents = allEvents.filter(event => event.date === focusDate);
+  const upcomingEvents = allEvents.filter(event => event.date >= today).slice(0, 20);
+  const eventNodes = monthEvents.map(event => calendarEventToNode(event, locale));
+
+  return {
+    id: 'ex_calendar',
+    title: t(locale, 'calendar'),
+    type: 'calendarEventList',
+    previewIcon: <Calendar className="w-16 h-16" />,
+    children: [
+      {
+        id: 'calendar_today',
+        title: focusDate === today ? 'Today' : formatEventDate(focusDate),
+        type: 'calendarEventList',
+        calendarEventDate: focusDate,
+        detailLines: todayEvents.length ? [`${todayEvents.length} event${todayEvents.length === 1 ? '' : 's'}`, 'Next/Previous changes day.'] : ['No events on this day.', 'Long Select is not required: use New Event.'],
+        children: todayEvents.length
+          ? todayEvents.map(event => calendarEventToNode(event, locale))
+          : [{
+              id: 'calendar_today_empty',
+              title: t(locale, 'newEvent'),
+              type: 'localMusicStatus',
+              action: 'calendar_event_add',
+              calendarEventDate: focusDate,
+              detailLines: ['Create an event for this day.'],
+            }],
+      },
+      {
+        id: 'calendar_upcoming',
+        title: 'Upcoming',
+        type: 'calendarEventList',
+        detailLines: upcomingEvents.length ? [`${upcomingEvents.length} upcoming events`] : ['No upcoming events.'],
+        children: upcomingEvents.length
+          ? upcomingEvents.map(event => calendarEventToNode(event, locale))
+          : [{
+              id: 'calendar_upcoming_empty',
+              title: t(locale, 'newEvent'),
+              type: 'localMusicStatus',
+              action: 'calendar_event_add',
+              detailLines: ['Create the next event.'],
+            }],
+      },
+      {
+        id: 'calendar_event_add',
+        title: t(locale, 'newEvent'),
+        type: 'localMusicStatus',
+        action: 'calendar_event_add',
+        statusTone: 'neutral',
+        detailLines: ['Creates a local SquarePod calendar event.'],
+      },
+      {
+        id: 'calendar_month',
+        title: t(locale, 'monthView'),
+        type: 'calendar',
+        calendarEventDate: focusDate,
+        detailLines: monthEvents.length
+          ? [t(locale, 'eventsThisMonth', { count: monthEvents.length, plural: monthEvents.length === 1 ? '' : 's' }), 'Next/Previous changes month.']
+          : [t(locale, 'noEventsThisMonth')],
+        children: eventNodes,
+      },
+    ],
+  };
+};
+
+const generateSettingsMenu = (local: LocalMusicMenuState = {}): MenuNode => {
+  const locale = normalizeLocale(local.language);
+  const trackCount = local.tracks?.length || 0;
+  const albumCount = new Set((local.tracks || []).map(normalizeLocalAlbumKey)).size;
+  const artistCount = new Set((local.tracks || []).map(track => track.artist || 'Unknown Artist')).size;
+
+  return {
+    id: 'settings',
+    title: t(locale, 'settings'),
+    type: 'menu',
+    previewIcon: <Settings className="w-16 h-16 text-gray-400" />,
+    children: [
+      {
+        id: 'set_about',
+        title: t(locale, 'about'),
+        type: 'about',
+        previewIcon: <Info className="w-16 h-16" />,
+        detailLines: [
+          `${t(locale, 'allSongs')}: ${trackCount}`,
+          `${t(locale, 'artists')}: ${artistCount}`,
+          `${t(locale, 'albums')}: ${albumCount}`,
+          'Android',
+          '0.0.0',
+        ],
+      },
+      {
+        id: 'set_language',
+        title: `${t(locale, 'language')}: ${localeLabel(locale)}`,
+        type: 'menu',
+        children: LOCALE_OPTIONS.map(option => ({
+          id: `set_language_${option.code}`,
+          title: option.nativeLabel,
+          type: 'localMusicStatus' as const,
+          action: 'settings_set_language' as const,
+          settingKey: option.code,
+          statusTone: option.code === locale ? 'success' as const : 'neutral' as const,
+          detailLines: [option.label],
+        })),
+      },
+      generateMainMenuSettings(local),
+      {
+        id: 'set_playback',
+        title: t(locale, 'playback'),
+        type: 'menu',
+        children: [
+          {
+            id: 'set_playback_mode',
+            title: `${t(locale, 'playbackMode')}: ${playbackModeLabel(local.playbackMode, locale)}`,
+            type: 'localMusicStatus',
+            action: 'settings_cycle_playback_mode',
+            statusTone: 'neutral',
+            detailLines: [
+              playbackModeLabel(local.playbackMode, locale),
+              `${t(locale, 'sequential')} / ${t(locale, 'shuffle')} / ${t(locale, 'repeatAll')} / ${t(locale, 'repeatOne')}`,
+            ],
+          },
+          {
+            id: 'set_continuation',
+            title: `${t(locale, 'continuePlayback')}: ${local.continuationMode === 'album' ? t(locale, 'album') : t(locale, 'library')}`,
+            type: 'localMusicStatus',
+            action: 'local_toggle_continuation',
+            statusTone: 'neutral',
+            detailLines: [
+              local.continuationMode === 'album' ? t(locale, 'album') : t(locale, 'library'),
+              `${t(locale, 'album')} / ${t(locale, 'library')}`,
+            ],
+          },
+          {
+            id: 'set_eq',
+            title: `${t(locale, 'eq')}: ${local.eqPreset || t(locale, 'off')}`,
+            type: 'localMusicStatus',
+            action: 'settings_cycle_eq',
+            statusTone: 'neutral',
+            detailLines: [
+              `${t(locale, 'eq')}: ${local.eqPreset || t(locale, 'off')}`,
+              `${t(locale, 'off')} / Bass Boost / Treble Boost / Spoken Word`,
+            ],
+          },
+        ],
+      },
+      {
+        id: 'set_interface',
+        title: t(locale, 'interfaceSettings'),
+        type: 'menu',
+        children: [
+          {
+            id: 'set_click_sound',
+            title: `${t(locale, 'clickSound')}: ${formatPercent(local.uiSoundVolume ?? 0.65)}`,
+            type: 'localMusicStatus',
+            action: 'settings_cycle_click_sound',
+            previewIcon: <Volume2 className="w-16 h-16" />,
+            statusTone: 'neutral',
+            detailLines: [
+              `${t(locale, 'clickSound')}: ${formatPercent(local.uiSoundVolume ?? 0.65)}`,
+              `${t(locale, 'off')} / 25 / 50 / 75 / 100`,
+            ],
+          },
+          {
+            id: 'set_backlight',
+            title: `${t(locale, 'backlight')}: ${backlightLabel(local.backlightTimer, locale)}`,
+            type: 'localMusicStatus',
+            action: 'settings_cycle_backlight',
+            statusTone: 'neutral',
+            detailLines: [
+              `${t(locale, 'backlight')}: ${backlightLabel(local.backlightTimer, locale)}`,
+              `30s / 1m / 2m / ${t(locale, 'alwaysOn')}`,
+            ],
+          },
+        ],
+      },
+      {
+        id: 'set_library',
+        title: t(locale, 'librarySettings'),
+        type: 'menu',
+        children: [
+          {
+            id: 'set_auto_scan',
+            title: `${t(locale, 'autoScan')}: ${enabledLabel(local.autoScan !== false, locale)}`,
+            type: 'localMusicStatus',
+            action: 'settings_toggle_auto_scan',
+            previewIcon: <RefreshCw className="w-16 h-16" />,
+            switchValue: local.autoScan !== false,
+            statusTone: 'neutral',
+            detailLines: [
+              `${t(locale, 'autoScan')}: ${enabledLabel(local.autoScan !== false, locale)}`,
+              `${t(locale, 'on')} / ${t(locale, 'off')}`,
+            ],
+          },
+          {
+            id: 'set_audiobooks',
+            title: `${t(locale, 'audiobooks')}: ${enabledLabel(local.audiobooksEnabled, locale)}`,
+            type: 'localMusicStatus',
+            action: 'settings_toggle_audiobook',
+            switchValue: local.audiobooksEnabled !== false,
+            statusTone: 'neutral',
+            detailLines: [
+              `${t(locale, 'audiobooks')}: ${enabledLabel(local.audiobooksEnabled, locale)}`,
+              `${t(locale, 'on')} / ${t(locale, 'off')}`,
+            ],
+          },
+          {
+            id: 'set_compilations',
+            title: `${t(locale, 'compilations')}: ${enabledLabel(local.compilationsEnabled, locale)}`,
+            type: 'localMusicStatus',
+            action: 'settings_toggle_compilations',
+            switchValue: local.compilationsEnabled !== false,
+            statusTone: 'neutral',
+            detailLines: [
+              `${t(locale, 'compilations')}: ${enabledLabel(local.compilationsEnabled, locale)}`,
+              `${t(locale, 'on')} / ${t(locale, 'off')}`,
+            ],
+          },
+        ],
+      },
+      {
+        id: 'set_legal',
+        title: t(locale, 'legal'),
+        type: 'legal',
+        detailLines: [
+          'SquarePod',
+          'Apple Music / Spotify',
+          'FM Radio',
+        ],
+      },
+      {
+        id: 'set_reset',
+        title: t(locale, 'resetAppSettings'),
+        type: 'localMusicStatus',
+        action: 'settings_reset',
+        previewIcon: <RotateCcw className="w-16 h-16" />,
+        statusTone: 'warning',
+        detailLines: [
+          t(locale, 'resetAppSettings'),
+          t(locale, 'music'),
+        ],
+      },
+    ],
+  };
+};
+
+export const generateMenuRoot = (local: LocalMusicMenuState = {}): MenuNode => {
+  const locale = normalizeLocale(local.language);
+  const configurableItems: Record<string, MenuNode> = {
+    music: generateMusicMenu(local),
+    videos: generateVideosMenu(local),
+    photos: generatePhotosMenu(local),
+    radio: generateRadioMenu(local),
+    notes: generateNotesMenu(local),
+    ex_clock: generateClockMenu(local),
+    ex_contacts: generateContactsMenu(local),
+    ex_calendar: generateCalendarMenu(local),
+    ex_stopwatch: { id: 'ex_stopwatch', title: t(locale, 'stopwatch'), type: 'stopwatch' },
+    ex_screen_lock: { id: 'ex_screen_lock', title: t(locale, 'screenLock'), type: 'screenLock', action: 'screen_lock' },
+    shuffle_songs: {
       id: 'shuffle_songs',
-      title: 'Shuffle Songs',
+      title: t(locale, 'shuffleSongs'),
       type: 'localMusicStatus',
       action: 'player_shuffle_all',
       previewIcon: <Shuffle className="w-16 h-16 text-green-500" />,
       detailLines: ['Shuffle all local songs.'],
-    }
-  ]
-});
+    },
+  };
+  const order = normalizeMainMenuOrder(local.mainMenuOrder);
+  const enabledItems = order
+    .filter(key => isMainMenuItemEnabled(local.mainMenuEnabled, key))
+    .map(key => configurableItems[key])
+    .filter((item): item is MenuNode => Boolean(item));
+  const extrasChildren = order
+    .filter(key => !isMainMenuItemEnabled(local.mainMenuEnabled, key))
+    .map(key => configurableItems[key])
+    .filter((item): item is MenuNode => Boolean(item));
+
+  return {
+    id: 'root',
+    title: 'iPod',
+    type: 'menu',
+    children: [
+      ...enabledItems,
+      {
+        id: 'extras',
+        title: t(locale, 'extras'),
+        type: 'menu',
+        children: extrasChildren,
+      },
+      generateSettingsMenu(local),
+    ],
+  };
+};
 
 export const MENU_ROOT: MenuNode = generateMenuRoot();

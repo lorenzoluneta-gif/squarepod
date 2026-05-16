@@ -1,8 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { MenuNode, PlaybackMode, Song } from '../types';
+import { MenuNode, PlaybackMode, Song, TextEditorState } from '../types';
 import { motion, useReducedMotion } from 'motion/react';
 import { CachedImage } from './CachedImage';
 import { DeviceStatus } from '../native/deviceStatus';
+import { Capacitor } from '@capacitor/core';
+import { Locale, t } from '../i18n';
+import type { SleepTimerMenuState } from '../data';
+
+export type VideoCommand =
+  | { id: number; action: 'toggle' }
+  | { id: number; action: 'seek'; seconds: number };
 
 interface ScreenProps {
   currentNode: MenuNode;
@@ -11,10 +18,27 @@ interface ScreenProps {
   currentSong?: Song;
   progress: number;
   playbackMode: PlaybackMode;
+  videoCommand?: VideoCommand;
+  stopwatchElapsedMs: number;
+  stopwatchRunning: boolean;
+  stopwatchLaps: number[];
+  stopwatchLastSession?: {
+    totalMs: number;
+    laps: number[];
+    endedAt: number;
+  };
+  screenLocked: boolean;
+  unlockArmed: boolean;
+  sleepTimer: SleepTimerMenuState;
   coverFlowIsSelecting: boolean;
   coverFlowIsDragging: boolean;
   coverFlowReleaseId: number;
   coverFlowReleaseVelocity: number;
+  locale: Locale;
+  textEditor?: TextEditorState;
+  onTextEditorChange: (field: keyof TextEditorState['fields'], value: string) => void;
+  onTextEditorSave: () => void;
+  onTextEditorCancel: () => void;
   onCoverFlowSettleTarget: (index: number) => void;
 }
 
@@ -28,6 +52,39 @@ const COVER_FLOW_RELEASE_MIN_DISTANCE = 0.62;
 const COVER_FLOW_RELEASE_VELOCITY_FACTOR = 0.22;
 const COVER_FLOW_RELEASE_VELOCITY_EPSILON = 0.15;
 const COVER_FLOW_VISIBLE_RANGE = 4.25;
+const PHOTO_GRID_COLUMNS = 4;
+const PHOTO_GRID_VISIBLE_ROWS = 2;
+
+const AppleSwitch = ({ checked, selected = false }: { checked: boolean; selected?: boolean }) => (
+  <motion.div
+    className={`relative h-[18px] w-[32px] shrink-0 rounded-full border shadow-inner ${
+      checked
+        ? selected ? 'border-white/70 bg-white/95' : 'border-green-500 bg-green-500'
+        : selected ? 'border-white/60 bg-white/25' : 'border-gray-300 bg-gray-200'
+    }`}
+    animate={{
+      backgroundColor: checked ? (selected ? '#ffffff' : '#22c55e') : (selected ? 'rgba(255,255,255,0.25)' : '#e5e7eb'),
+      borderColor: checked ? (selected ? 'rgba(255,255,255,0.75)' : '#22c55e') : (selected ? 'rgba(255,255,255,0.6)' : '#d1d5db'),
+    }}
+    transition={{ type: 'spring', stiffness: 520, damping: 34 }}
+  >
+    <motion.div
+      className={`absolute top-[2px] h-[12px] w-[12px] rounded-full shadow-sm ${
+        checked && selected ? 'bg-blue-600' : 'bg-white'
+      }`}
+      animate={{ x: checked ? 16 : 2 }}
+      transition={{ type: 'spring', stiffness: 620, damping: 32 }}
+    />
+  </motion.div>
+);
+
+const resolveNativeMediaSrc = (sourceUrl?: string) => {
+  if (!sourceUrl) return undefined;
+  if (sourceUrl.startsWith('file://') || sourceUrl.startsWith('content://')) {
+    return Capacitor.convertFileSrc(sourceUrl);
+  }
+  return sourceUrl;
+};
 
 export function Screen({
   currentNode,
@@ -36,15 +93,29 @@ export function Screen({
   currentSong,
   progress,
   playbackMode,
+  videoCommand,
+  stopwatchElapsedMs,
+  stopwatchRunning,
+  stopwatchLaps,
+  stopwatchLastSession,
+  screenLocked,
+  unlockArmed,
+  sleepTimer,
   coverFlowIsSelecting,
   coverFlowIsDragging,
   coverFlowReleaseId,
   coverFlowReleaseVelocity,
+  locale,
+  textEditor,
+  onTextEditorChange,
+  onTextEditorSave,
+  onTextEditorCancel,
   onCoverFlowSettleTarget,
 }: ScreenProps) {
   const [coverFlowPosition, setCoverFlowPosition] = useState(cursorIndex);
   const [batteryPercent, setBatteryPercent] = useState<number>();
   const [batteryCharging, setBatteryCharging] = useState(false);
+  const [now, setNow] = useState(() => new Date());
   const coverFlowPositionRef = useRef(cursorIndex);
   const coverFlowTargetRef = useRef(cursorIndex);
   const coverFlowMotionModeRef = useRef<'drag' | 'settle'>('settle');
@@ -52,6 +123,8 @@ export function Screen({
   const coverFlowLastTimeRef = useRef<number | null>(null);
   const coverFlowLastReleaseIdRef = useRef(coverFlowReleaseId);
   const coverFlowPreviousNodeIdRef = useRef<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const editorFirstInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const shouldReduceMotion = useReducedMotion();
   const coverFlowAlbumCount = currentNode.type === 'coverFlow'
     ? currentNode.children?.length || 0
@@ -204,6 +277,45 @@ export function Screen({
     };
   }, []);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (currentNode.type !== 'textEditor' || !textEditor) return undefined;
+
+    const frame = window.requestAnimationFrame(() => {
+      editorFirstInputRef.current?.focus({ preventScroll: true });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [currentNode.id, currentNode.type, textEditor?.kind, textEditor?.mode]);
+
+  useEffect(() => {
+    if (!videoCommand || currentNode.type !== 'videoDetail') return;
+
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (videoCommand.action === 'toggle') {
+      if (video.paused || video.ended) {
+        if (video.ended) video.currentTime = 0;
+        video.play().catch(error => {
+          console.error('Video playback failed', error);
+        });
+      } else {
+        video.pause();
+      }
+      return;
+    }
+
+    const nextTime = video.currentTime + videoCommand.seconds;
+    video.currentTime = Number.isFinite(video.duration)
+      ? Math.max(0, Math.min(video.duration, nextTime))
+      : Math.max(0, nextTime);
+  }, [currentNode.type, videoCommand]);
+
   // Format seconds to mm:ss
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -277,16 +389,29 @@ export function Screen({
 
   const renderRightPreview = (selectedChild?: MenuNode) => {
     if (selectedChild?.previewImage) {
+      const isVideoPreview = selectedChild.mediaItem?.kind === 'video' || selectedChild.id === 'v_all';
+
       return (
         <div className="w-1/2 h-full bg-neutral-50 flex items-center justify-center p-6">
-           <CachedImage src={selectedChild.previewImage} className="w-full aspect-square object-cover shadow-lg rounded-sm" />
+          <div className="relative w-full aspect-square overflow-hidden rounded-sm bg-neutral-200 shadow-lg">
+            <CachedImage src={selectedChild.previewImage} className="h-full w-full object-cover" />
+            {isVideoPreview && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-black/70 text-white shadow-sm">
+                  <svg width="14" height="16" viewBox="0 0 10 12" fill="currentColor" aria-hidden="true">
+                    <path d="M0 0l10 6-10 6z" />
+                  </svg>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       );
     }
 
     const isMusicRelated = ['music', 'now_playing_menu', 'shuffle_songs'].includes(selectedChild?.id || '');
     
-    if (currentSong && (isMusicRelated || (!selectedChild?.previewIcon && !selectedChild?.previewImage && !selectedChild?.detailLines?.length))) {
+    if (currentSong && isMusicRelated) {
       const duration = Math.max(1, currentSong.duration || 1);
       const progressPercent = Math.max(0, Math.min(100, (progress / duration) * 100));
       const remaining = Math.max(0, duration - progress);
@@ -296,7 +421,7 @@ export function Screen({
           <div className="w-full aspect-square shadow-lg relative group overflow-hidden rounded-sm bg-neutral-300">
             <CachedImage src={currentSong.coverUrl} className="absolute inset-0 w-full h-full object-cover" />
             <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center text-white text-center">
-              <p className="text-[10px] font-bold uppercase tracking-widest opacity-80 mt-auto">Now Playing</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest opacity-80 mt-auto">{t(locale, 'nowPlaying')}</p>
               <p className="text-sm font-bold leading-tight px-2 w-full truncate">{currentSong.title}</p>
               <p className="text-[10px] font-medium w-full truncate px-2 mb-2">{currentSong.artist}</p>
             </div>
@@ -329,6 +454,9 @@ export function Screen({
               />
             )}
             <div className="text-sm font-bold leading-tight text-gray-900 truncate">{selectedChild.title}</div>
+            {typeof selectedChild.switchValue === 'boolean' && (
+              <AppleSwitch checked={Boolean(selectedChild.switchValue)} />
+            )}
           </div>
           <div className="mt-3 space-y-2">
             {selectedChild.detailLines.map((line, index) => (
@@ -373,7 +501,7 @@ export function Screen({
   };
 
   const renderNowPlayingFull = () => {
-    if (!currentSong) return <div className="flex-1 flex items-center justify-center text-xs font-bold font-sans">No Song Selected</div>;
+    if (!currentSong) return <div className="flex-1 flex items-center justify-center text-xs font-bold font-sans">{t(locale, 'noSongSelected')}</div>;
 
     const duration = Math.max(1, currentSong.duration || 1);
     const progressPercent = Math.max(0, Math.min(100, (progress / duration) * 100));
@@ -411,7 +539,7 @@ export function Screen({
   const renderSongDetail = () => {
     const track = currentNode.localTrack;
     if (!track) {
-      return <div className="flex-1 flex items-center justify-center text-xs font-bold font-sans">No Song Selected</div>;
+      return <div className="flex-1 flex items-center justify-center text-xs font-bold font-sans">{t(locale, 'noSongSelected')}</div>;
     }
 
     return (
@@ -428,7 +556,7 @@ export function Screen({
           </div>
         </div>
         <div className="w-1/2 flex flex-col justify-center px-6 font-sans overflow-hidden">
-          <div className="text-[10px] font-black uppercase leading-none text-blue-600">Song</div>
+          <div className="text-[10px] font-black uppercase leading-none text-blue-600">{t(locale, 'song')}</div>
           <div className="mt-2 text-lg font-black leading-tight text-gray-950 line-clamp-2">{track.title || 'Unknown Title'}</div>
           <div className="mt-2 text-sm font-bold leading-tight text-gray-700 line-clamp-2">{track.artist || 'Unknown Artist'}</div>
           <div className="mt-1 text-xs font-semibold leading-tight text-gray-500 line-clamp-2">{track.album || 'Unknown Album'}</div>
@@ -438,7 +566,7 @@ export function Screen({
                 <path d="M0 0l10 6-10 6z" />
               </svg>
             </div>
-            <div className="text-[11px] font-black uppercase leading-none text-gray-700">Select to Play</div>
+            <div className="text-[11px] font-black uppercase leading-none text-gray-700">{t(locale, 'selectToPlay')}</div>
           </div>
         </div>
       </div>
@@ -475,8 +603,8 @@ export function Screen({
       return (
         <div className="flex-1 bg-gradient-to-b from-neutral-100 to-neutral-200 flex flex-col items-center justify-center px-8 text-center">
           <div className="h-24 w-24 rounded-sm border border-neutral-300 bg-gradient-to-br from-neutral-200 to-neutral-400 shadow-inner" />
-          <div className="mt-5 text-sm font-black leading-tight text-neutral-800">No Albums</div>
-          <div className="mt-1 text-[11px] font-bold leading-tight text-neutral-500">Scan local music first.</div>
+          <div className="mt-5 text-sm font-black leading-tight text-neutral-800">{t(locale, 'noAlbums')}</div>
+          <div className="mt-1 text-[11px] font-bold leading-tight text-neutral-500">{t(locale, 'scanLocalMusicFirst')}</div>
         </div>
       );
     }
@@ -624,14 +752,20 @@ export function Screen({
              >
                {children.map((child, idx) => {
                  const isSelected = idx === cursorIndex;
+                 const hasSwitch = typeof child.switchValue === 'boolean';
                  return (
                    <div 
                       key={child.id} 
-	                      className="relative h-[32px] px-4 flex justify-between items-center bg-transparent"
+	                      className={`relative h-[32px] px-4 flex justify-between items-center bg-transparent ${child.reorderActive ? 'ring-2 ring-inset ring-amber-300' : ''}`}
 	                   >
-	                     <span className={`relative text-sm font-bold truncate z-10 transition-colors duration-150 ${isSelected ? 'text-white' : 'text-gray-800'}`}>
+	                     <span className={`relative min-w-0 text-sm font-bold truncate z-10 transition-colors duration-150 ${isSelected ? 'text-white' : 'text-gray-800'}`}>
 	                       {child.title}
 	                     </span>
+                     {hasSwitch && (
+                       <div className="relative z-10 ml-2">
+                         <AppleSwitch checked={Boolean(child.switchValue)} selected={isSelected} />
+                       </div>
+                     )}
                      {child.isLoading && (
                        <motion.span
                          className={`relative h-3 w-3 shrink-0 rounded-full border-2 z-10 ${isSelected ? 'border-white/50 border-t-white' : 'border-gray-300 border-t-blue-500'}`}
@@ -639,7 +773,7 @@ export function Screen({
                          transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
                        />
                      )}
-                     {!child.isLoading && child.type === 'menu' && (
+                     {!hasSwitch && !child.isLoading && child.type === 'menu' && (
                        <span className={`relative text-[10px] font-bold pl-2 z-10 transition-colors duration-150 ${isSelected ? 'text-white' : 'text-gray-400'}`}>
                          &gt;
                        </span>
@@ -657,8 +791,170 @@ export function Screen({
     );
   };
 
+  const inputClass = 'w-full rounded-sm border border-neutral-300 bg-white px-2 py-1.5 text-[12px] font-semibold leading-tight text-neutral-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200';
+  const labelClass = 'text-[9px] font-black uppercase tracking-wide text-neutral-500';
+
+  const renderTextField = (
+    field: keyof TextEditorState['fields'],
+    label: string,
+    options: {
+      type?: string;
+      inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
+      placeholder?: string;
+      first?: boolean;
+    } = {},
+  ) => (
+    <label className="block">
+      <div className={labelClass}>{label}</div>
+      <input
+        ref={options.first ? element => { editorFirstInputRef.current = element; } : undefined}
+        className={`${inputClass} mt-1`}
+        type={options.type || 'text'}
+        inputMode={options.inputMode}
+        enterKeyHint="next"
+        value={textEditor?.fields[field] || ''}
+        placeholder={options.placeholder}
+        onChange={event => onTextEditorChange(field, event.target.value)}
+      />
+    </label>
+  );
+
+  const renderTextArea = (
+    field: keyof TextEditorState['fields'],
+    label: string,
+    options: { placeholder?: string; first?: boolean } = {},
+  ) => (
+    <label className="block min-h-0">
+      <div className={labelClass}>{label}</div>
+      <textarea
+        ref={options.first ? element => { editorFirstInputRef.current = element; } : undefined}
+        className={`${inputClass} mt-1 min-h-[74px] resize-none`}
+        value={textEditor?.fields[field] || ''}
+        placeholder={options.placeholder}
+        onChange={event => onTextEditorChange(field, event.target.value)}
+      />
+    </label>
+  );
+
+  const renderTextEditor = () => {
+    if (!textEditor) return renderServiceStatus();
+
+    const title = textEditor.mode === 'create'
+      ? textEditor.kind === 'note' ? t(locale, 'newNote') : textEditor.kind === 'contact' ? t(locale, 'newContact') : t(locale, 'newEvent')
+      : textEditor.kind === 'note' ? t(locale, 'editNote') : textEditor.kind === 'contact' ? t(locale, 'editContact') : t(locale, 'editEvent');
+
+    return (
+      <form
+        className="flex-1 bg-neutral-50 p-3 overflow-y-auto"
+        onSubmit={event => {
+          event.preventDefault();
+          onTextEditorSave();
+        }}
+      >
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="truncate text-[15px] font-black leading-tight text-neutral-950">{title}</div>
+            <div className="text-[9px] font-bold uppercase text-neutral-500">{t(locale, 'menuCancelsSelectSaves')}</div>
+          </div>
+          <div className="flex shrink-0 gap-1">
+            <button type="button" className="rounded-sm border border-neutral-300 bg-white px-2 py-1 text-[10px] font-black text-neutral-700" onClick={onTextEditorCancel}>{t(locale, 'cancel')}</button>
+            <button type="submit" className="rounded-sm bg-blue-600 px-2 py-1 text-[10px] font-black text-white">{t(locale, 'save')}</button>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          {textEditor.kind === 'note' && (
+            <>
+              {renderTextField('title', t(locale, 'title'), { first: true, placeholder: t(locale, 'noteTitlePlaceholder') })}
+              {renderTextArea('body', t(locale, 'body'), { placeholder: t(locale, 'noteBodyPlaceholder') })}
+            </>
+          )}
+
+          {textEditor.kind === 'contact' && (
+            <>
+              {renderTextField('name', t(locale, 'name'), { first: true, placeholder: t(locale, 'name') })}
+              {renderTextField('phone', t(locale, 'phone'), { inputMode: 'tel', placeholder: t(locale, 'phone') })}
+              {renderTextField('email', t(locale, 'email'), { type: 'email', inputMode: 'email', placeholder: t(locale, 'email') })}
+            </>
+          )}
+
+          {textEditor.kind === 'calendarEvent' && (
+            <>
+              {renderTextField('title', t(locale, 'title'), { first: true, placeholder: t(locale, 'eventTitle') })}
+              {renderTextField('date', t(locale, 'date'), { type: 'date' })}
+              {renderTextField('time', t(locale, 'time'), { type: 'time' })}
+              {renderTextArea('notes', t(locale, 'notes'), { placeholder: t(locale, 'eventNotes') })}
+            </>
+          )}
+        </div>
+
+        {textEditor.error && (
+          <div className="mt-3 rounded-sm border border-red-200 bg-red-50 px-2 py-1.5 text-[11px] font-bold leading-tight text-red-700">
+            {textEditor.error}
+          </div>
+        )}
+      </form>
+    );
+  };
+
   const renderClock = () => {
-    // A simple static clock mockup
+    if (currentNode.id.startsWith('sleep_timer')) {
+      const remainingMs = sleepTimer.status === 'running' && sleepTimer.startedAt && sleepTimer.durationMs
+        ? Math.max(0, sleepTimer.startedAt + sleepTimer.durationMs - now.getTime())
+        : 0;
+      const remainingSeconds = Math.ceil(remainingMs / 1000);
+      const minutes = Math.floor(remainingSeconds / 60);
+      const seconds = remainingSeconds % 60;
+      const formatted = sleepTimer.status === 'running'
+        ? `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+        : sleepTimer.status === 'completed' ? 'Done' : 'Off';
+
+      return (
+        <div className="flex-1 bg-neutral-950 text-white flex flex-col justify-center px-6">
+          <div className="text-[10px] font-black uppercase text-white/55">Sleep Timer</div>
+          <div className="mt-2 text-4xl font-black leading-none tabular-nums">{formatted}</div>
+          <div className="mt-4 space-y-1">
+            {(currentNode.detailLines || []).map((line, index) => (
+              <div key={`${line}-${index}`} className="text-[11px] font-bold leading-tight text-white/70">{line}</div>
+            ))}
+          </div>
+          <div className="mt-6 grid grid-cols-2 gap-2 text-[10px] font-black uppercase text-white/60">
+            <div>Select action</div>
+            <div>Menu back</div>
+            <div>Next +5m</div>
+            <div>Prev -5m</div>
+          </div>
+        </div>
+      );
+    }
+
+    const timeZoneByNode: Record<string, string> = {
+      clk_local: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      clk_new_york: 'America/New_York',
+      clk_london: 'Europe/London',
+      clk_tokyo: 'Asia/Tokyo',
+    };
+    const timeZone = timeZoneByNode[currentNode.id] || Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const parts = new Intl.DateTimeFormat(locale, {
+      timeZone,
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    }).formatToParts(now);
+    const hour = Number(parts.find(part => part.type === 'hour')?.value || 0) % 12;
+    const minute = Number(parts.find(part => part.type === 'minute')?.value || 0);
+    const second = Number(parts.find(part => part.type === 'second')?.value || 0);
+    const formattedTime = new Intl.DateTimeFormat(locale, {
+      timeZone,
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(now);
+    const hourDegrees = hour * 30 + minute * 0.5;
+    const minuteDegrees = minute * 6 + second * 0.1;
+    const secondDegrees = second * 6;
+
     return (
       <div className="flex-1 bg-neutral-100 flex flex-col items-center justify-center relative overflow-hidden">
         <div className="w-32 h-32 rounded-full border-[8px] border-gray-400 bg-white relative flex items-center justify-center shadow-inner">
@@ -668,97 +964,135 @@ export function Screen({
           <div className="absolute right-2 w-3 h-1 bg-gray-300"></div>
           
           {/* Hands */}
-          <div className="w-1 h-12 bg-gray-800 absolute bottom-1/2 left-1/2 -mb-0.5 -ml-0.5 origin-bottom rotate-45 rounded-full"></div>
-          <div className="w-1.5 h-8 bg-gray-800 absolute bottom-1/2 left-1/2 -mb-0.5 -ml-[3px] origin-bottom -rotate-[30deg] rounded-full"></div>
-          <div className="w-0.5 h-14 bg-red-500 absolute bottom-1/2 left-1/2 -mb-0.5 -ml-[1px] origin-bottom rotate-[180deg]"></div>
+          <div className="w-1.5 h-8 bg-gray-800 absolute bottom-1/2 left-1/2 -mb-0.5 -ml-[3px] origin-bottom rounded-full" style={{ transform: `rotate(${hourDegrees}deg)` }}></div>
+          <div className="w-1 h-12 bg-gray-800 absolute bottom-1/2 left-1/2 -mb-0.5 -ml-0.5 origin-bottom rounded-full" style={{ transform: `rotate(${minuteDegrees}deg)` }}></div>
+          <div className="w-0.5 h-14 bg-red-500 absolute bottom-1/2 left-1/2 -mb-0.5 -ml-[1px] origin-bottom" style={{ transform: `rotate(${secondDegrees}deg)` }}></div>
           
           <div className="w-3 h-3 bg-gray-800 rounded-full z-10 absolute"></div>
         </div>
-        <div className="mt-8 text-xl font-bold text-gray-800 font-sans tracking-tight">10:09 AM</div>
+        <div className="mt-8 text-xl font-bold text-gray-800 font-sans tracking-tight">{formattedTime}</div>
         <div className="text-xs font-semibold text-gray-500">{currentNode.title || 'Clock'}</div>
       </div>
     );
   };
 
-  const renderGameBrick = () => {
-    return (
-      <div className="flex-1 bg-white flex flex-col pt-4">
-        {/* Simple Brick breakout mockup */}
-        <div className="flex justify-between px-2 mb-2">
-          <div className="text-[10px] font-bold">SCORE: 004815</div>
-          <div className="text-[10px] font-bold">LIVES: 3</div>
-        </div>
-        <div className="flex-1 border-t-2 border-gray-800 bg-gray-50 relative overflow-hidden mx-2 mb-2 shadow-inner">
-          {/* Bricks */}
-          <div className="w-full flex space-x-1 p-2">
-             <div className="h-4 flex-1 bg-gray-800 border-b border-gray-400"></div>
-             <div className="h-4 flex-1 bg-gray-800 border-b border-gray-400"></div>
-             <div className="h-4 flex-1 bg-transparent"></div>
-             <div className="h-4 flex-1 bg-gray-800 border-b border-gray-400"></div>
-          </div>
-          <div className="w-full flex space-x-1 px-2">
-             <div className="h-4 flex-1 bg-gray-600 border-b border-gray-400"></div>
-             <div className="h-4 flex-1 bg-gray-600 border-b border-gray-400"></div>
-             <div className="h-4 flex-1 bg-gray-600 border-b border-gray-400"></div>
-             <div className="h-4 flex-1 bg-gray-600 border-b border-gray-400"></div>
-          </div>
-          <div className="w-full flex space-x-1 px-2 pt-1">
-             <div className="h-4 flex-1 bg-gray-400 border-b border-gray-300"></div>
-             <div className="h-4 flex-1 bg-transparent border-b border-gray-300"></div>
-             <div className="h-4 flex-1 bg-gray-400 border-b border-gray-300"></div>
-             <div className="h-4 flex-1 bg-gray-400 border-b border-gray-300"></div>
-          </div>
-          
-          {/* Ball */}
-          <div className="w-3 h-3 bg-gray-900 rounded-full absolute top-[60%] left-[45%]"></div>
-          
-          {/* Paddle */}
-          <div className="w-16 h-2 rounded-full bg-gray-900 absolute bottom-4 left-[40%]"></div>
-        </div>
-      </div>
-    );
-  };
-
   const renderCalendar = () => {
+    const focus = currentNode.calendarEventDate ? new Date(`${currentNode.calendarEventDate}T00:00:00`) : now;
+    const year = focus.getFullYear();
+    const month = focus.getMonth();
+    const todayDate = new Date();
+    const isCurrentMonth = todayDate.getFullYear() === year && todayDate.getMonth() === month;
+    const today = isCurrentMonth ? todayDate.getDate() : -1;
+    const eventDates = new Set((currentNode.children || [])
+      .map(child => child.calendarEventDate)
+      .filter((date): date is string => Boolean(date)));
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const monthTitle = new Intl.DateTimeFormat(locale, {
+      month: 'long',
+      year: 'numeric',
+    }).format(now);
+    const cells = [
+      ...Array.from({ length: firstDay }, () => 0),
+      ...Array.from({ length: daysInMonth }, (_, index) => index + 1),
+    ];
+
     return (
       <div className="flex-1 bg-white flex flex-col p-2">
-        <div className="text-center font-bold text-sm bg-blue-500 text-white py-1 rounded-sm shadow-sm mb-2">October 2001</div>
+        <div className="text-center font-bold text-sm bg-blue-500 text-white py-1 rounded-sm shadow-sm mb-2">{monthTitle}</div>
         <div className="grid grid-cols-7 gap-1 flex-1">
-          {['S','M','T','W','T','F','S'].map((d, i) => (
+          {t(locale, 'weekdaysShort').split(',').map((d, i) => (
             <div key={i} className="text-center text-[10px] font-bold text-gray-400">{d}</div>
           ))}
-          {[...Array(31)].map((_, i) => (
-            <div key={i} className={`text-center text-xs font-bold py-1 ${i === 22 ? 'bg-blue-100 border border-blue-500 text-blue-800 shadow-sm rounded-sm z-10' : 'text-gray-800'}`}>
-              {i + 1}
-            </div>
-          ))}
+          {cells.map((day, index) => {
+            const dateKey = day
+              ? `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+              : '';
+            const hasEvent = eventDates.has(dateKey);
+            return (
+              <div key={`${day}-${index}`} className={`relative text-center text-xs font-bold py-1 ${day === today ? 'bg-blue-100 border border-blue-500 text-blue-800 shadow-sm rounded-sm z-10' : 'text-gray-800'}`}>
+                {day || ''}
+                {hasEvent && (
+                  <span className="absolute bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-blue-600" />
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     );
   };
 
   const renderStopwatch = () => {
+    const totalCentiseconds = Math.floor(stopwatchElapsedMs / 10);
+    const centiseconds = totalCentiseconds % 100;
+    const totalSeconds = Math.floor(totalCentiseconds / 100);
+    const seconds = totalSeconds % 60;
+    const minutes = Math.floor(totalSeconds / 60);
+    const formatted = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(centiseconds).padStart(2, '0')}`;
+    const lapRows = stopwatchLaps
+      .map((elapsed, index, all) => ({
+        index: index + 1,
+        elapsed,
+        split: elapsed - (all[index - 1] || 0),
+      }))
+      .slice(-4)
+      .reverse();
+    const formatMs = (ms: number) => {
+      const cs = Math.floor(ms / 10);
+      const c = cs % 100;
+      const s = Math.floor(cs / 100) % 60;
+      const m = Math.floor(cs / 6000);
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(c).padStart(2, '0')}`;
+    };
+
     return (
-       <div className="flex-1 bg-neutral-100 flex flex-col items-center justify-center p-6 text-center">
-         <div className="text-4xl font-bold font-mono tracking-tighter text-gray-800">00:00.00</div>
-         <div className="mt-8 flex space-x-4">
-           <div className="text-xs font-bold border-2 border-gray-400 rounded px-3 py-1 bg-white shadow-sm">Start (Select)</div>
-           <div className="text-xs font-bold text-gray-400 border-2 border-gray-300 rounded px-3 py-1">Clear (Menu)</div>
+       <div className="flex-1 bg-neutral-100 flex flex-col p-5">
+         <div className="flex items-center justify-between">
+           <div className="text-[10px] font-black uppercase text-gray-500">{stopwatchRunning ? t(locale, 'running') : stopwatchElapsedMs > 0 ? 'Paused' : t(locale, 'stopped')}</div>
+           <div className={`h-2 w-2 rounded-full ${stopwatchRunning ? 'bg-red-500' : 'bg-gray-400'}`} />
+         </div>
+         <div className="mt-2 text-4xl font-black font-mono tracking-tighter text-gray-900 tabular-nums">{formatted}</div>
+         <div className="mt-4 min-h-[82px] space-y-1 overflow-hidden">
+           {lapRows.length ? lapRows.map(lap => (
+             <div key={lap.index} className="flex justify-between border-b border-gray-200 pb-1 text-[11px] font-black tabular-nums text-gray-700">
+               <span>Lap {String(lap.index).padStart(2, '0')}</span>
+               <span>{formatMs(lap.split)}</span>
+             </div>
+           )) : stopwatchLastSession ? (
+             <div className="space-y-1 text-[11px] font-bold text-gray-600">
+               <div className="font-black text-gray-900">Last Session</div>
+               <div>Total {formatMs(stopwatchLastSession.totalMs)}</div>
+               <div>{stopwatchLastSession.laps.length} laps</div>
+             </div>
+           ) : (
+             <div className="text-[11px] font-bold leading-tight text-gray-500">Select starts. Next records a lap. Pause first, then Previous resets.</div>
+           )}
+         </div>
+         <div className="mt-auto grid grid-cols-3 gap-1 text-center text-[9px] font-black uppercase text-gray-500">
+           <div>Select {stopwatchRunning ? 'Pause' : 'Start'}</div>
+           <div>Next Lap</div>
+           <div>Prev Reset</div>
          </div>
        </div>
     );
   };
 
   const renderAbout = () => {
+     const lines = currentNode.detailLines || [];
      return (
        <div className="flex-1 bg-white flex flex-col p-4">
-          <div className="font-bold text-lg mb-4 text-center">iPod</div>
+          <div className="font-bold text-lg mb-4 text-center">SquarePod</div>
           <div className="space-y-2 align-middle">
-            <div className="flex border-b border-gray-100 pb-1 justify-between text-xs font-bold"><span className="text-gray-500">Songs</span><span>10</span></div>
-            <div className="flex border-b border-gray-100 pb-1 justify-between text-xs font-bold"><span className="text-gray-500">Capacity</span><span>4.8 GB</span></div>
-            <div className="flex border-b border-gray-100 pb-1 justify-between text-xs font-bold"><span className="text-gray-500">Available</span><span>4.1 GB</span></div>
-            <div className="flex border-b border-gray-100 pb-1 justify-between text-xs font-bold"><span className="text-gray-500">Version</span><span>1.0</span></div>
-            <div className="flex justify-between text-xs font-bold"><span className="text-gray-500">S/N</span><span>JQ438B0B88</span></div>
+            {lines.map(line => {
+              const [label, ...valueParts] = line.split(':');
+              return (
+                <div key={line} className="flex border-b border-gray-100 pb-1 justify-between gap-3 text-xs font-bold">
+                  <span className="text-gray-500">{label}</span>
+                  <span className="text-right">{valueParts.join(':').trim() || '-'}</span>
+                </div>
+              );
+            })}
           </div>
        </div>
      );
@@ -770,8 +1104,8 @@ export function Screen({
          <svg className="w-12 h-12 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
          </svg>
-         <div className="text-gray-500 font-bold text-sm tracking-tight">Not Implemented</div>
-         <div className="text-gray-400 text-xs mt-1 leading-tight">This feature is a mockup.</div>
+         <div className="text-gray-500 font-bold text-sm tracking-tight">{t(locale, 'notImplemented')}</div>
+         <div className="text-gray-400 text-xs mt-1 leading-tight">{t(locale, 'mockupFeature')}</div>
        </div>
      );
   };
@@ -789,7 +1123,7 @@ export function Screen({
       <div className="flex-1 bg-white flex flex-col p-5 overflow-hidden">
         <div className={`text-sm font-bold leading-tight ${toneClass}`}>{currentNode.title}</div>
         <div className="mt-3 space-y-2">
-          {(currentNode.detailLines || ['No service details available.']).map((line, index) => (
+          {(currentNode.detailLines || [t(locale, 'noServiceDetails')]).map((line, index) => (
             <div key={`${line}-${index}`} className="text-[11px] leading-tight font-semibold text-gray-700">
               {line}
             </div>
@@ -799,20 +1133,137 @@ export function Screen({
     );
   };
 
-  const renderPhotos = () => {
+  const renderPhotoGrid = () => {
+    const photos = (currentNode.children || []).filter(child => child.mediaItem?.kind === 'photo');
+
+    if (!photos.length) {
+      return renderServiceStatus();
+    }
+
+    const visibleCount = PHOTO_GRID_COLUMNS * PHOTO_GRID_VISIBLE_ROWS;
+    const selectedRow = Math.floor(cursorIndex / PHOTO_GRID_COLUMNS);
+    const rowCount = Math.ceil(photos.length / PHOTO_GRID_COLUMNS);
+    const maxStartRow = Math.max(0, rowCount - PHOTO_GRID_VISIBLE_ROWS);
+    const startRow = Math.max(0, Math.min(maxStartRow, selectedRow - 1));
+    const startIndex = startRow * PHOTO_GRID_COLUMNS;
+    const visiblePhotos = photos.slice(startIndex, startIndex + visibleCount);
+
     return (
-      <div className="flex-1 bg-black p-1 grid grid-cols-4 gap-1 content-start">
-        {[...Array(12)].map((_, i) => (
-          <div key={i} className="aspect-square bg-gray-800 rounded-sm relative overflow-hidden">
-             <img src={`https://images.unsplash.com/photo-${1500000000000 + i}?auto=format&fit=crop&q=60&w=100`} className="absolute inset-0 object-cover w-full h-full opacity-60" />
-          </div>
-        ))}
+      <div className="flex-1 bg-black p-[3px] grid grid-cols-4 gap-[3px] content-start overflow-hidden">
+        {visiblePhotos.map((photo, index) => {
+          const absoluteIndex = startIndex + index;
+          const isSelected = absoluteIndex === cursorIndex;
+
+          return (
+            <div key={photo.id} className="aspect-square bg-gray-800 rounded-[2px] relative overflow-hidden">
+              <CachedImage
+                src={photo.mediaItem?.thumbnailUri || photo.mediaItem?.uri || ''}
+                className="absolute inset-0 object-cover w-full h-full"
+                decoding="async"
+              />
+              {isSelected && (
+                <div className="pointer-events-none absolute inset-0 z-10 rounded-[2px] border-[3px] border-blue-500 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.92),0_0_0_1px_rgba(0,0,0,0.65)]" />
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   };
 
-  const renderPodcasts = () => {
-     return renderNowPlayingFull(); // use music player for podcast mockup
+  const renderPhotoDetail = () => {
+    const item = currentNode.mediaItem;
+    if (!item) return renderServiceStatus();
+
+    return (
+      <div className="flex-1 bg-black flex items-center justify-center">
+        <CachedImage src={item.uri} className="max-h-full max-w-full object-contain" />
+      </div>
+    );
+  };
+
+  const renderVideoDetail = () => {
+    const item = currentNode.mediaItem;
+    if (!item) return renderServiceStatus();
+    const videoSrc = resolveNativeMediaSrc(item.uri);
+    const posterSrc = resolveNativeMediaSrc(item.thumbnailUri);
+
+    return (
+      <div className="flex-1 bg-black flex flex-col">
+        <video
+          ref={videoRef}
+          src={videoSrc}
+          poster={posterSrc}
+          controls
+          preload="metadata"
+          className="h-full w-full object-contain"
+        />
+      </div>
+    );
+  };
+
+  const renderRadio = () => {
+    const lines = currentNode.detailLines || [t(locale, 'radioStatusUnavailable')];
+    const frequencyLine = currentNode.radioFrequency
+      ? `${currentNode.radioFrequency.toFixed(1)} MHz`
+      : lines[0];
+
+    return (
+      <div className="flex-1 bg-neutral-100 flex flex-col items-center justify-center px-6 text-center">
+        <div className="relative h-24 w-36 rounded-sm border-4 border-neutral-700 bg-neutral-900 shadow-inner">
+          <div className="absolute inset-x-4 top-5 h-2 rounded-full bg-neutral-700">
+            <div className="h-full w-1 rounded-full bg-red-500" style={{ marginLeft: '56%' }} />
+          </div>
+          <div className="absolute inset-x-4 bottom-5 flex items-end gap-1">
+            {[0.45, 0.72, 0.32, 0.86, 0.54].map((height, index) => (
+              <div key={index} className="w-full rounded-sm bg-neutral-400" style={{ height: `${height * 28}px` }} />
+            ))}
+          </div>
+        </div>
+        <div className="mt-5 text-xl font-black leading-none text-neutral-900">{frequencyLine}</div>
+        <div className="mt-3 space-y-1">
+          {lines.slice(0, 4).map((line, index) => (
+            <div key={`${line}-${index}`} className="text-[11px] font-bold leading-tight text-neutral-600">{line}</div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderDetailLinesScreen = () => (
+    <div className="flex-1 bg-white flex flex-col p-5 overflow-y-auto">
+      <div className="text-lg font-black leading-tight text-neutral-900">{currentNode.title}</div>
+      <div className="mt-4 space-y-3">
+        {(currentNode.detailLines || []).map((line, index) => (
+          <div key={`${line}-${index}`} className="whitespace-pre-wrap text-xs font-semibold leading-tight text-neutral-700">{line}</div>
+        ))}
+      </div>
+      {currentNode.children?.length ? (
+        <div className="mt-auto text-[10px] font-black uppercase text-neutral-500">{t(locale, 'actions')}</div>
+      ) : null}
+    </div>
+  );
+
+  const renderScreenLock = () => {
+    return (
+      <div className="flex-1 bg-neutral-950 text-white flex flex-col items-center justify-center text-center p-6">
+        <div className="h-16 w-16 rounded-full border-4 border-white/80 flex items-center justify-center">
+          <div className="h-7 w-5 rounded-sm border-2 border-white relative">
+            <div className="absolute -top-4 left-1/2 h-5 w-6 -translate-x-1/2 rounded-t-full border-2 border-white border-b-0" />
+          </div>
+        </div>
+        <div className="mt-6 text-lg font-black">{t(locale, 'screenLocked')}</div>
+        {currentSong && (
+          <div className="mt-3 w-full min-w-0">
+            <div className="truncate text-sm font-black">{currentSong.title}</div>
+            <div className="truncate text-xs font-bold text-white/60">{currentSong.artist}</div>
+          </div>
+        )}
+        <div className="mt-4 text-xs font-bold text-white/70">
+          {unlockArmed ? 'Press Select to unlock. Menu cancels.' : 'Press Menu, then Select to unlock.'}
+        </div>
+      </div>
+    );
   };
 
   const renderScreenContent = () => {
@@ -820,17 +1271,32 @@ export function Screen({
       case 'coverFlow': return renderCoverFlow();
       case 'nowPlaying': return renderNowPlayingFull();
       case 'songDetail': return renderSongDetail();
+      case 'videoDetail': return renderVideoDetail();
+      case 'photoGrid': return renderPhotoGrid();
+      case 'photoDetail': return renderPhotoDetail();
+      case 'radioStatus': return renderServiceStatus();
+      case 'radioNowPlaying': return renderRadio();
+      case 'radioStationList': return renderMenu();
+      case 'radioTune': return renderRadio();
       case 'clock': return renderClock();
-      case 'game_brick': return renderGameBrick();
       case 'calendar': return renderCalendar();
+      case 'calendarEventList': return renderMenu();
+      case 'calendarEventDetail': return renderDetailLinesScreen();
       case 'stopwatch': return renderStopwatch();
+      case 'contactList': return renderMenu();
+      case 'contactDetail': return renderDetailLinesScreen();
+      case 'noteList': return renderMenu();
+      case 'noteDetail': return renderDetailLinesScreen();
+      case 'textEditor': return renderTextEditor();
+      case 'screenLock': return renderScreenLock();
+      case 'legal': return renderDetailLinesScreen();
       case 'appleMusicStatus':
       case 'spotifyStatus':
       case 'localMusicStatus':
         return renderServiceStatus();
       case 'about': return renderAbout();
-      case 'photos': return renderPhotos();
-      case 'podcasts': return renderPodcasts();
+      case 'photos': return renderPhotoGrid();
+      case 'podcasts': return renderRadio();
       case 'videos': return renderPlaceholder();
       case 'settings': return renderPlaceholder();
       case 'placeholder': return renderPlaceholder();
@@ -839,10 +1305,12 @@ export function Screen({
     }
   };
 
+  const usesFullScreenMedia = currentNode.type === 'photoDetail';
+
   return (
     <div className="w-full h-full bg-white border-[4px] border-neutral-900 rounded-[36px] shadow-inner flex flex-col overflow-hidden">
-      {renderHeader()}
-      <div className="w-full h-[calc(100%-24px)] min-h-0 overflow-hidden flex">
+      {!usesFullScreenMedia && renderHeader()}
+      <div className={`w-full ${usesFullScreenMedia ? 'h-full' : 'h-[calc(100%-24px)]'} min-h-0 overflow-hidden flex`}>
         {renderScreenContent()}
       </div>
     </div>

@@ -41,6 +41,7 @@ export interface LocalMusicPlugin {
   seek(options: { position: number }): Promise<LocalMusicPlaybackState>;
   setShuffle(options: { enabled: boolean }): Promise<LocalMusicPlaybackState>;
   setRepeat(options: { mode: LocalRepeatMode }): Promise<LocalMusicPlaybackState>;
+  setEq(options: { preset: string }): Promise<LocalMusicPlaybackState>;
   getState(): Promise<LocalMusicPlaybackState>;
   addListener(
     eventName: 'playbackState',

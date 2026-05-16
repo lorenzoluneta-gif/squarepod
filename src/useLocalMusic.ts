@@ -42,7 +42,11 @@ const playbackModeFromState = (shuffle: ShuffleMode, repeat: LocalRepeatMode): P
   return shuffle === 'songs' ? 'shuffle' : 'sequential';
 };
 
-export function useLocalMusic() {
+interface UseLocalMusicOptions {
+  autoScan?: boolean;
+}
+
+export function useLocalMusic({ autoScan = true }: UseLocalMusicOptions = {}) {
   const isAndroid = Capacitor.getPlatform() === 'android';
   const [status, setStatus] = useState<LocalMusicStatus>('idle');
   const [message, setMessage] = useState('Scan local music to build your library.');
@@ -139,9 +143,9 @@ export function useLocalMusic() {
   };
 
   useEffect(() => {
-    if (!isAndroid) return;
+    if (!isAndroid || !autoScan) return;
     scanLibrary().catch(() => undefined);
-  }, [isAndroid]);
+  }, [autoScan, isAndroid]);
 
   const playQueue = async (queue: LocalMusicTrack[], startIndex = 0, options: { shuffle?: boolean; repeatMode?: LocalRepeatMode } = {}) => {
     if (!queue.length) throw new Error('No local tracks to play.');
@@ -206,6 +210,12 @@ export function useLocalMusic() {
     await setRepeatMode(nextRepeat);
   };
 
+  const setEqPreset = async (preset: string) => {
+    const state = await LocalMusic.setEq({ preset });
+    applyPlaybackState(state);
+    return state;
+  };
+
   return {
     status,
     message,
@@ -226,5 +236,6 @@ export function useLocalMusic() {
     prevTrack,
     seekTo,
     setPlaybackMode,
+    setEqPreset,
   };
 }

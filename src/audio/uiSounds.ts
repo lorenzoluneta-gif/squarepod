@@ -1,14 +1,24 @@
 type AudioContextFactory = typeof AudioContext;
 
-const MASTER_GAIN = 0.9;
-const WHEEL_TICK_MIN_INTERVAL_MS = 18;
-const WHEEL_TICK_SPACING_SECONDS = 0.021;
-const MAX_WHEEL_TICKS_PER_EVENT = 4;
+const DEFAULT_MASTER_GAIN = 0.65;
+const WHEEL_TICK_MIN_INTERVAL_MS = 42;
+const WHEEL_TICK_SPACING_SECONDS = 0.048;
+const MAX_WHEEL_TICKS_PER_EVENT = 3;
 
 let audioContext: AudioContext | undefined;
 let masterGain: GainNode | undefined;
 let noiseBuffer: AudioBuffer | undefined;
 let lastWheelTickAt = 0;
+let masterVolume = DEFAULT_MASTER_GAIN;
+
+const clampVolume = (volume: number) => Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : DEFAULT_MASTER_GAIN));
+
+export const setUiSoundVolume = (volume: number) => {
+  masterVolume = clampVolume(volume);
+  if (masterGain) {
+    masterGain.gain.value = masterVolume;
+  }
+};
 
 const getAudioContext = () => {
   if (typeof window === 'undefined') return undefined;
@@ -26,7 +36,7 @@ const getAudioContext = () => {
 
     audioContext = new AudioContextCtor({ latencyHint: 'interactive' });
     masterGain = audioContext.createGain();
-    masterGain.gain.value = MASTER_GAIN;
+    masterGain.gain.value = masterVolume;
     masterGain.connect(audioContext.destination);
   }
 
@@ -36,7 +46,7 @@ const getAudioContext = () => {
 const getMasterGain = (context: AudioContext) => {
   if (!masterGain) {
     masterGain = context.createGain();
-    masterGain.gain.value = MASTER_GAIN;
+    masterGain.gain.value = masterVolume;
     masterGain.connect(context.destination);
   }
   return masterGain;
@@ -183,7 +193,7 @@ export const playWheelTick = (steps = 1) => {
       startTime,
       attackSeconds: 0.001,
       decaySeconds: 0.022,
-      volume: 0.072,
+      volume: 0.16,
       frequency: 2600,
       q: 7,
       type: 'bandpass',
@@ -192,7 +202,7 @@ export const playWheelTick = (steps = 1) => {
       startTime,
       attackSeconds: 0.001,
       decaySeconds: 0.018,
-      volume: 0.036,
+      volume: 0.08,
       frequency: 1250,
       endFrequency: 980,
       type: 'square',

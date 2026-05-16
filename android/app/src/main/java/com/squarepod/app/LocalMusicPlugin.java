@@ -7,6 +7,7 @@ import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.media.MediaMetadataRetriever;
 import android.media.MediaPlayer;
+import android.media.audiofx.Equalizer;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -52,12 +53,14 @@ public class LocalMusicPlugin extends Plugin {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final List<LocalTrack> queue = new ArrayList<>();
     private MediaPlayer player;
+    private Equalizer equalizer;
     private int currentIndex = -1;
     private int savedPositionSeconds = 0;
     private long lastPersistAt = 0;
     private boolean prepared = false;
     private boolean shuffle = false;
     private String repeatMode = "off";
+    private String eqPreset = "Off";
     private final Runnable progressTicker = new Runnable() {
         @Override
         public void run() {
@@ -199,6 +202,13 @@ public class LocalMusicPlugin extends Plugin {
     public void setRepeat(PluginCall call) {
         repeatMode = normalizeRepeat(call.getString("mode", "off"));
         persistPlaybackState(true);
+        resolveWithState(call);
+    }
+
+    @PluginMethod
+    public void setEq(PluginCall call) {
+        eqPreset = normalizeEqPreset(call.getString("preset", "Off"));
+        applyEqualizer();
         resolveWithState(call);
     }
 
@@ -406,6 +416,7 @@ public class LocalMusicPlugin extends Plugin {
                     mediaPlayer.seekTo(boundedPosition * 1000);
                 }
                 savedPositionSeconds = boundedPosition;
+                applyEqualizer();
                 mediaPlayer.start();
                 startTicker();
                 persistPlaybackState(true);
@@ -621,12 +632,80 @@ public class LocalMusicPlugin extends Plugin {
     }
 
     private void releasePlayer() {
+        releaseEqualizer();
         if (player != null) {
             player.reset();
             player.release();
             player = null;
         }
         prepared = false;
+    }
+
+    private void applyEqualizer() {
+        releaseEqualizer();
+        if (player == null || "Off".equals(eqPreset)) return;
+
+        try {
+            equalizer = new Equalizer(0, player.getAudioSessionId());
+            short[] range = equalizer.getBandLevelRange();
+            short minLevel = range[0];
+            short maxLevel = range[1];
+            short bandCount = equalizer.getNumberOfBands();
+
+            for (short band = 0; band < bandCount; band += 1) {
+                int[] freqRange = equalizer.getBandFreqRange(band);
+                int centerHz = ((freqRange[0] + freqRange[1]) / 2) / 1000;
+                int level = eqLevelForBand(centerHz, minLevel, maxLevel);
+                equalizer.setBandLevel(band, clampLevel(level, minLevel, maxLevel));
+            }
+
+            equalizer.setEnabled(true);
+        } catch (Throwable ignored) {
+            releaseEqualizer();
+        }
+    }
+
+    private int eqLevelForBand(int centerHz, short minLevel, short maxLevel) {
+        int boost = Math.min(700, Math.max(150, maxLevel / 3));
+        int cut = Math.max(-500, Math.min(-100, minLevel / 4));
+
+        if ("Bass Boost".equals(eqPreset)) {
+            if (centerHz <= 250) return boost;
+            if (centerHz >= 4000) return cut;
+            return 0;
+        }
+        if ("Treble Boost".equals(eqPreset)) {
+            if (centerHz >= 4000) return boost;
+            if (centerHz <= 180) return cut;
+            return 0;
+        }
+        if ("Spoken Word".equals(eqPreset)) {
+            if (centerHz >= 500 && centerHz <= 3500) return boost;
+            if (centerHz <= 160 || centerHz >= 8000) return cut;
+            return 0;
+        }
+        return 0;
+    }
+
+    private short clampLevel(int level, short minLevel, short maxLevel) {
+        return (short) Math.max(minLevel, Math.min(maxLevel, level));
+    }
+
+    private void releaseEqualizer() {
+        if (equalizer != null) {
+            try {
+                equalizer.setEnabled(false);
+                equalizer.release();
+            } catch (Throwable ignored) {}
+            equalizer = null;
+        }
+    }
+
+    private String normalizeEqPreset(String preset) {
+        if ("Bass Boost".equals(preset)) return "Bass Boost";
+        if ("Treble Boost".equals(preset)) return "Treble Boost";
+        if ("Spoken Word".equals(preset)) return "Spoken Word";
+        return "Off";
     }
 
     private void startTicker() {

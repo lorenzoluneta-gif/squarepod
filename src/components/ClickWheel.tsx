@@ -1,9 +1,30 @@
 import React from 'react';
 import { RotateEndMeta, useWheel } from '../useWheel';
 import { playOuterButtonClick, playSelectClick, playWheelTick, unlockUiAudio } from '../audio/uiSounds';
+import { WheelHaptics } from '../native/wheelHaptics';
 
 const CLICK_WHEEL_SENSITIVITY = Math.PI / 6;
 const OUTER_BUTTON_SOUND_DELAY_MS = 70;
+const LONG_PRESS_START_MS = 700;
+const LONG_PRESS_REPEAT_MS = 180;
+
+const hapticButton = () => {
+  WheelHaptics.tick({
+    count: 2,
+    durationMs: 36,
+    gapMs: 10,
+    amplitude: 255,
+  }).catch(() => undefined);
+};
+
+const hapticSelect = () => {
+  WheelHaptics.tick({
+    count: 2,
+    durationMs: 44,
+    gapMs: 9,
+    amplitude: 255,
+  }).catch(() => undefined);
+};
 
 interface ClickWheelProps {
   onRotate: (steps: number) => void;
@@ -12,6 +33,8 @@ interface ClickWheelProps {
   onPlayPause: () => void;
   onNext: () => void;
   onPrev: () => void;
+  onNextLongPress?: () => void;
+  onPrevLongPress?: () => void;
   onRotateStart?: () => void;
   onRotateEnd?: (meta: RotateEndMeta) => void;
 }
@@ -23,10 +46,28 @@ export function ClickWheel({
   onPlayPause,
   onNext,
   onPrev,
+  onNextLongPress,
+  onPrevLongPress,
   onRotateStart,
   onRotateEnd,
 }: ClickWheelProps) {
   const pendingOuterButtonSoundRef = React.useRef<number | null>(null);
+  const longPressStartRef = React.useRef<number | null>(null);
+  const longPressRepeatRef = React.useRef<number | null>(null);
+  const longPressZoneRef = React.useRef<'next' | 'prev' | null>(null);
+  const longPressFiredRef = React.useRef(false);
+
+  const clearLongPressTimers = () => {
+    if (longPressStartRef.current !== null) {
+      window.clearTimeout(longPressStartRef.current);
+      longPressStartRef.current = null;
+    }
+    if (longPressRepeatRef.current !== null) {
+      window.clearInterval(longPressRepeatRef.current);
+      longPressRepeatRef.current = null;
+    }
+    longPressZoneRef.current = null;
+  };
 
   const clearPendingOuterButtonSound = () => {
     if (pendingOuterButtonSoundRef.current === null) return;
@@ -42,7 +83,44 @@ export function ClickWheel({
     }, OUTER_BUTTON_SOUND_DELAY_MS);
   };
 
+  const zoneFromPointer = (event: React.PointerEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const angle = Math.atan2(event.clientY - cy, event.clientX - cx);
+
+    if (angle > -Math.PI * 0.25 && angle < Math.PI * 0.25) return 'next';
+    if (angle < -Math.PI * 0.75 || angle > Math.PI * 0.75) return 'prev';
+    return null;
+  };
+
+  const scheduleLongPress = (zone: 'next' | 'prev' | null) => {
+    clearLongPressTimers();
+    if (!zone) return;
+
+    longPressZoneRef.current = zone;
+    longPressStartRef.current = window.setTimeout(() => {
+      longPressStartRef.current = null;
+      longPressFiredRef.current = true;
+      const fire = () => {
+        if (longPressZoneRef.current === 'next') {
+          onNextLongPress?.();
+        } else if (longPressZoneRef.current === 'prev') {
+          onPrevLongPress?.();
+        }
+      };
+      fire();
+      longPressRepeatRef.current = window.setInterval(fire, LONG_PRESS_REPEAT_MS);
+    }, LONG_PRESS_START_MS);
+  };
+
   const handleZoneClick = (angle: number) => {
+    if (longPressFiredRef.current) {
+      longPressFiredRef.current = false;
+      return;
+    }
+
+    hapticButton();
     if (angle >= -Math.PI * 0.75 && angle <= -Math.PI * 0.25) {
       onMenu();
     } else if (angle >= Math.PI * 0.25 && angle <= Math.PI * 0.75) {
@@ -55,6 +133,7 @@ export function ClickWheel({
   };
 
   const handleWheelRotate = (steps: number) => {
+    clearLongPressTimers();
     clearPendingOuterButtonSound();
     playWheelTick(steps);
     onRotate(steps);
@@ -63,19 +142,25 @@ export function ClickWheel({
   const handleWheelPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     unlockUiAudio();
     scheduleOuterButtonSound();
+    scheduleLongPress(zoneFromPointer(event));
     handlePointerDown(event);
   };
 
   const handleWheelPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (longPressZoneRef.current && zoneFromPointer(event) !== longPressZoneRef.current) {
+      clearLongPressTimers();
+    }
     handlePointerMove(event);
   };
 
   const handleWheelPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    clearLongPressTimers();
     handlePointerUp(event);
   };
 
   const handleWheelPointerCancel = (event: React.PointerEvent<HTMLDivElement>) => {
     clearPendingOuterButtonSound();
+    clearLongPressTimers();
     handlePointerUp(event);
   };
 
@@ -83,10 +168,12 @@ export function ClickWheel({
     clearPendingOuterButtonSound();
     event.stopPropagation();
     unlockUiAudio();
+    hapticSelect();
     playSelectClick();
   };
 
   const handleRotateStartWithSoundCancel = () => {
+    clearLongPressTimers();
     clearPendingOuterButtonSound();
     onRotateStart?.();
   };
@@ -98,6 +185,13 @@ export function ClickWheel({
     onRotateEnd,
     sensitivity: CLICK_WHEEL_SENSITIVITY,
   });
+
+  React.useEffect(() => {
+    return () => {
+      clearPendingOuterButtonSound();
+      clearLongPressTimers();
+    };
+  }, []);
 
   return (
     <div className="relative w-full h-full flex items-center justify-center select-none" style={{ touchAction: 'none' }}>
