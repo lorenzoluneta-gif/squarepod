@@ -24,11 +24,15 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileFilter;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -307,7 +311,8 @@ public class LocalMusicPlugin extends Plugin {
                     safeAlbum(cursor.getString(albumIndex)),
                     Math.max(1, Math.round(cursor.getLong(durationIndex) / 1000f)),
                     Math.max(0, cursor.getInt(trackIndex) % 1000),
-                    artworkUri
+                    artworkUri,
+                    readSidecarLyrics(path)
                 ));
             }
         } catch (Throwable ignored) {
@@ -374,7 +379,8 @@ public class LocalMusicPlugin extends Plugin {
                 safeAlbum(album),
                 parseDuration(duration),
                 parseTrackNumber(trackNumber),
-                writeArtwork(retriever.getEmbeddedPicture(), trackId)
+                writeArtwork(retriever.getEmbeddedPicture(), trackId),
+                readSidecarLyrics(file)
             );
         } catch (Throwable ignored) {
             return new LocalTrack(
@@ -385,7 +391,8 @@ public class LocalMusicPlugin extends Plugin {
                 "Unknown Album",
                 1,
                 0,
-                null
+                null,
+                readSidecarLyrics(file)
             );
         } finally {
             try {
@@ -817,6 +824,97 @@ public class LocalMusicPlugin extends Plugin {
             || lower.endsWith(".opus");
     }
 
+    private static List<LyricLine> readSidecarLyrics(String audioPath) {
+        if (TextUtils.isEmpty(audioPath)) return Collections.emptyList();
+        return readSidecarLyrics(new File(audioPath));
+    }
+
+    private static List<LyricLine> readSidecarLyrics(File audioFile) {
+        if (audioFile == null) return Collections.emptyList();
+        File parent = audioFile.getParentFile();
+        String name = audioFile.getName();
+        int extensionIndex = name.lastIndexOf('.');
+        if (parent == null || extensionIndex <= 0) return Collections.emptyList();
+
+        File lyricFile = new File(parent, name.substring(0, extensionIndex) + ".lrc");
+        if (!lyricFile.exists() || !lyricFile.isFile()) return Collections.emptyList();
+
+        List<LyricLine> lines = new ArrayList<>();
+        List<String> rawLines = new ArrayList<>();
+        int offsetMs = 0;
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(lyricFile), StandardCharsets.UTF_8))) {
+            String rawLine;
+            while ((rawLine = reader.readLine()) != null) {
+                String line = rawLine.replace("\uFEFF", "").trim();
+                if (line.isEmpty()) continue;
+                rawLines.add(line);
+
+                String lower = line.toLowerCase(Locale.ROOT);
+                if (lower.startsWith("[offset:") && line.endsWith("]")) {
+                    try {
+                        offsetMs = Integer.parseInt(line.substring(8, line.length() - 1).trim());
+                    } catch (Throwable ignored) {}
+                }
+            }
+
+            for (String line : rawLines) {
+                String lower = line.toLowerCase(Locale.ROOT);
+                if (lower.startsWith("[offset:") && line.endsWith("]")) continue;
+
+                List<Integer> timestamps = new ArrayList<>();
+                int cursor = 0;
+                while (cursor < line.length() && line.charAt(cursor) == '[') {
+                    int end = line.indexOf(']', cursor);
+                    if (end <= cursor) break;
+                    int time = parseLrcTimeMs(line.substring(cursor + 1, end));
+                    if (time >= 0) timestamps.add(time);
+                    cursor = end + 1;
+                }
+
+                if (timestamps.isEmpty()) continue;
+                String text = line.substring(cursor).trim();
+                if (text.isEmpty()) continue;
+                for (int timestamp : timestamps) {
+                    int seconds = Math.max(0, Math.round((timestamp + offsetMs) / 1000f));
+                    lines.add(new LyricLine(seconds, text));
+                }
+            }
+        } catch (Throwable ignored) {
+            return Collections.emptyList();
+        }
+
+        Collections.sort(lines, Comparator.comparingInt(line -> line.time));
+        return lines;
+    }
+
+    private static int parseLrcTimeMs(String value) {
+        int separator = value.indexOf(':');
+        if (separator <= 0) return -1;
+        try {
+            int minutes = Integer.parseInt(value.substring(0, separator));
+            String secondsValue = value.substring(separator + 1);
+            int seconds;
+            int milliseconds = 0;
+            int dot = secondsValue.indexOf('.');
+            if (dot >= 0) {
+                seconds = Integer.parseInt(secondsValue.substring(0, dot));
+                String fraction = secondsValue.substring(dot + 1);
+                if (fraction.length() == 1) {
+                    milliseconds = Integer.parseInt(fraction) * 100;
+                } else if (fraction.length() == 2) {
+                    milliseconds = Integer.parseInt(fraction) * 10;
+                } else if (fraction.length() >= 3) {
+                    milliseconds = Integer.parseInt(fraction.substring(0, 3));
+                }
+            } else {
+                seconds = Integer.parseInt(secondsValue);
+            }
+            return (minutes * 60 + seconds) * 1000 + milliseconds;
+        } catch (Throwable ignored) {
+            return -1;
+        }
+    }
+
     private static String normalizeRepeat(String value) {
         if ("one".equals(value) || "all".equals(value)) return value;
         return "off";
@@ -882,8 +980,9 @@ public class LocalMusicPlugin extends Plugin {
         final int duration;
         final int trackNumber;
         final String artworkUri;
+        final List<LyricLine> lyrics;
 
-        LocalTrack(String id, String uri, String title, String artist, String album, int duration, int trackNumber, String artworkUri) {
+        LocalTrack(String id, String uri, String title, String artist, String album, int duration, int trackNumber, String artworkUri, List<LyricLine> lyrics) {
             this.id = id;
             this.uri = uri;
             this.title = title;
@@ -892,6 +991,7 @@ public class LocalMusicPlugin extends Plugin {
             this.duration = duration;
             this.trackNumber = trackNumber;
             this.artworkUri = artworkUri;
+            this.lyrics = lyrics == null ? Collections.emptyList() : lyrics;
         }
 
         JSObject toJS() {
@@ -904,6 +1004,13 @@ public class LocalMusicPlugin extends Plugin {
             object.put("duration", duration);
             object.put("trackNumber", trackNumber);
             if (artworkUri != null) object.put("artworkUri", artworkUri);
+            if (!lyrics.isEmpty()) {
+                JSArray lyricArray = new JSArray();
+                for (LyricLine line : lyrics) {
+                    lyricArray.put(line.toJS());
+                }
+                object.put("lyrics", lyricArray);
+            }
             return object;
         }
 
@@ -919,8 +1026,43 @@ public class LocalMusicPlugin extends Plugin {
                 object.getString("album", "Unknown Album"),
                 object.getInteger("duration", 1),
                 object.getInteger("trackNumber", 0),
-                object.getString("artworkUri")
+                object.getString("artworkUri"),
+                lyricsFromJS(object)
             );
+        }
+
+        private static List<LyricLine> lyricsFromJS(JSObject object) {
+            JSONArray array = object.optJSONArray("lyrics");
+            if (array == null || array.length() == 0) return Collections.emptyList();
+            List<LyricLine> lines = new ArrayList<>();
+            for (int index = 0; index < array.length(); index += 1) {
+                JSONObject item = array.optJSONObject(index);
+                if (item == null) continue;
+                int time = Math.max(0, item.optInt("time", -1));
+                String text = item.optString("text", "").trim();
+                if (time >= 0 && !TextUtils.isEmpty(text)) {
+                    lines.add(new LyricLine(time, text));
+                }
+            }
+            Collections.sort(lines, Comparator.comparingInt(line -> line.time));
+            return lines;
+        }
+    }
+
+    private static class LyricLine {
+        final int time;
+        final String text;
+
+        LyricLine(int time, String text) {
+            this.time = time;
+            this.text = text;
+        }
+
+        JSObject toJS() {
+            JSObject object = new JSObject();
+            object.put("time", time);
+            object.put("text", text);
+            return object;
         }
     }
 }

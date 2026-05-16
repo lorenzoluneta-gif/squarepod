@@ -2,6 +2,11 @@ import { PluginListenerHandle, registerPlugin } from '@capacitor/core';
 
 export type LocalRepeatMode = 'off' | 'one' | 'all';
 
+export interface LocalLyricLine {
+  time: number;
+  text: string;
+}
+
 export interface LocalMusicTrack {
   id: string;
   uri: string;
@@ -11,6 +16,7 @@ export interface LocalMusicTrack {
   duration: number;
   trackNumber: number;
   artworkUri?: string;
+  lyrics?: LocalLyricLine[];
 }
 
 export interface LocalMusicLibrary {

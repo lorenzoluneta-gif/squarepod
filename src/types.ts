@@ -1,6 +1,6 @@
 import React from 'react';
 import { AppleMusicSong } from './services/appleMusic';
-import { LocalMusicTrack } from './native/localMusic';
+import { LocalLyricLine, LocalMusicTrack } from './native/localMusic';
 import { MediaLibraryItem } from './native/mediaLibrary';
 import { SpotifyPlaylist, SpotifyPlaylistTrack, SpotifyShortcut, SpotifyTrack } from './services/spotify';
 
@@ -121,6 +121,7 @@ export interface Song {
   duration: number; // in seconds
   coverUrl: string;
   url?: string;
+  lyrics?: LocalLyricLine[];
   appleMusicSong?: AppleMusicSong;
   localTrack?: LocalMusicTrack;
   spotifyTrack?: SpotifyTrack;

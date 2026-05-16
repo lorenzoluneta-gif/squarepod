@@ -323,6 +323,71 @@ export function Screen({
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
+  const activeLyricIndex = (seconds: number) => {
+    const lyrics = currentSong?.lyrics || [];
+    let activeIndex = -1;
+    for (let index = 0; index < lyrics.length; index += 1) {
+      if (lyrics[index].time <= seconds + 0.35) {
+        activeIndex = index;
+      } else {
+        break;
+      }
+    }
+    return activeIndex;
+  };
+
+  const renderLyricLines = (variant: 'compact' | 'full') => {
+    const lyrics = currentSong?.lyrics || [];
+    if (!lyrics.length) return null;
+
+    const activeIndex = activeLyricIndex(progress);
+    const focusIndex = Math.max(0, activeIndex);
+    const visibleIndexes = variant === 'compact'
+      ? [focusIndex]
+      : [focusIndex - 1, focusIndex, focusIndex + 1].filter(index => index >= 0 && index < lyrics.length);
+
+    if (!visibleIndexes.length) return null;
+
+    if (variant === 'compact') {
+      const line = lyrics[visibleIndexes[0]];
+      return (
+        <motion.div
+          key={`${line.time}-${line.text}`}
+          className="mt-2 w-full min-h-[18px] px-1 text-center text-[10px] font-black leading-tight text-gray-700 line-clamp-2"
+          initial={{ opacity: 0, y: 3 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+        >
+          {line.text}
+        </motion.div>
+      );
+    }
+
+    return (
+      <div className="mt-4 flex min-h-[76px] flex-col justify-center gap-1 overflow-hidden border-t border-gray-200 pt-3">
+        {visibleIndexes.map(index => {
+          const line = lyrics[index];
+          const isActive = index === focusIndex;
+          return (
+            <motion.div
+              key={`${line.time}-${line.text}`}
+              className={`line-clamp-2 leading-tight ${
+                isActive
+                  ? 'text-[13px] font-black text-gray-950'
+                  : 'text-[10px] font-bold text-gray-400'
+              }`}
+              animate={{ opacity: isActive ? 1 : 0.52, y: 0 }}
+              initial={{ opacity: 0, y: isActive ? 4 : 2 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+            >
+              {line.text}
+            </motion.div>
+          );
+        })}
+      </div>
+    );
+  };
+
   const renderPlaybackModeIcon = () => {
     if (currentNode.type !== 'nowPlaying' || playbackMode === 'sequential') return null;
 
@@ -437,6 +502,7 @@ export function Screen({
               <span className="text-[8px] text-gray-400 font-bold">{formatTime(progress)}</span>
               <span className="text-[8px] text-gray-400 font-bold">-{formatTime(remaining)}</span>
             </div>
+            {renderLyricLines('compact')}
           </div>
         </div>
       );
@@ -513,13 +579,13 @@ export function Screen({
            <CachedImage src={currentSong.coverUrl} className="w-full aspect-square object-cover shadow-lg rounded-sm" />
         </div>
         <div className="w-1/2 flex flex-col justify-center px-6 font-sans overflow-hidden">
-          <div className="min-h-[88px]">
+          <div className="min-h-[74px]">
             <div className="text-lg font-bold truncate leading-tight text-gray-900">{currentSong.title}</div>
             <div className="text-sm font-semibold text-gray-700 truncate leading-tight mt-1">{currentSong.artist}</div>
             <div className="text-xs text-gray-500 truncate leading-tight mt-1">{currentSong.album}</div>
           </div>
           
-          <div className="mt-6 flex flex-col w-full">
+          <div className="mt-4 flex flex-col w-full">
             <div className="w-full bg-gray-300 h-1.5 rounded-full overflow-hidden">
               <div 
                 className="h-full bg-blue-500" 
@@ -531,6 +597,7 @@ export function Screen({
               <span>-{formatTime(remaining)}</span>
             </div>
           </div>
+          {renderLyricLines('full')}
         </div>
       </div>
     );

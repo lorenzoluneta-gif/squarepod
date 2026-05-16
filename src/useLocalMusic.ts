@@ -32,6 +32,7 @@ const trackToSong = (track?: LocalMusicTrack): Song | undefined => {
     album: track.album,
     duration: track.duration,
     coverUrl: track.artworkUri || FALLBACK_COVER,
+    lyrics: track.lyrics,
     localTrack: track,
   };
 };
