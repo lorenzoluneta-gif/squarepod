@@ -17,6 +17,7 @@ export type MenuAction =
   | 'spotify_sync_library'
   | 'spotify_play_default'
   | 'local_music_scan'
+  | 'local_toggle_continuation'
   | 'player_shuffle_all';
 
 export interface MenuNode {

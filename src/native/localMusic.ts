@@ -27,6 +27,7 @@ export interface LocalMusicPlaybackState {
   repeatMode: LocalRepeatMode;
   index: number;
   queueLength: number;
+  queue?: LocalMusicTrack[];
   track?: LocalMusicTrack;
 }
 
@@ -52,4 +53,3 @@ export interface LocalMusicPlugin {
 }
 
 export const LocalMusic = registerPlugin<LocalMusicPlugin>('LocalMusic');
-

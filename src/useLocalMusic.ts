@@ -54,6 +54,7 @@ export function useLocalMusic() {
   const [progress, setProgress] = useState(0);
 
   const currentTrack = playbackState?.track;
+  const playbackQueue = playbackState?.queue || [];
   const currentSong = useMemo(() => trackToSong(currentTrack), [currentTrack]);
   const isPlaying = Boolean(playbackState?.isPlaying);
   const duration = currentSong?.duration || Math.max(1, playbackState?.duration || 1);
@@ -212,6 +213,7 @@ export function useLocalMusic() {
     musicDirectory,
     currentSong,
     currentTrack,
+    playbackQueue,
     isPlaying,
     progress,
     playbackMode,

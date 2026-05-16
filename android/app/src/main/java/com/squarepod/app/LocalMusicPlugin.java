@@ -3,6 +3,7 @@ package com.squarepod.app;
 import android.Manifest;
 import android.content.ContentUris;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.media.MediaMetadataRetriever;
 import android.media.MediaPlayer;
@@ -34,6 +35,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 @CapacitorPlugin(
@@ -44,10 +46,15 @@ import org.json.JSONObject;
     }
 )
 public class LocalMusicPlugin extends Plugin {
+    private static final String PLAYBACK_PREFS = "squarepod_local_playback";
+    private static final String PLAYBACK_STATE_KEY = "state";
+    private static final long PERSIST_INTERVAL_MS = 5000;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final List<LocalTrack> queue = new ArrayList<>();
     private MediaPlayer player;
     private int currentIndex = -1;
+    private int savedPositionSeconds = 0;
+    private long lastPersistAt = 0;
     private boolean prepared = false;
     private boolean shuffle = false;
     private String repeatMode = "off";
@@ -55,9 +62,16 @@ public class LocalMusicPlugin extends Plugin {
         @Override
         public void run() {
             notifyState();
+            persistPlaybackState(false);
             mainHandler.postDelayed(this, 1000);
         }
     };
+
+    @Override
+    public void load() {
+        super.load();
+        restoreSavedState();
+    }
 
     @PluginMethod
     public void scanLibrary(PluginCall call) {
@@ -106,14 +120,19 @@ public class LocalMusicPlugin extends Plugin {
         shuffle = nextShuffle;
         repeatMode = normalizeRepeat(nextRepeat);
         currentIndex = Math.max(0, Math.min(startIndex, queue.size() - 1));
+        savedPositionSeconds = 0;
+        persistPlaybackState(true);
         playCurrent(call);
     }
 
     @PluginMethod
     public void play(PluginCall call) {
+        if (queue.isEmpty()) {
+            restoreSavedState();
+        }
         if (player == null || !prepared) {
             if (currentIndex >= 0 && currentIndex < queue.size()) {
-                playCurrent(call);
+                playCurrent(call, resumePositionSeconds());
                 return;
             }
             call.reject("No local track is loaded.");
@@ -121,6 +140,7 @@ public class LocalMusicPlugin extends Plugin {
         }
         player.start();
         startTicker();
+        persistPlaybackState(true);
         resolveWithState(call);
     }
 
@@ -129,6 +149,7 @@ public class LocalMusicPlugin extends Plugin {
         if (player != null && prepared && player.isPlaying()) {
             player.pause();
         }
+        persistPlaybackState(true);
         resolveWithState(call);
     }
 
@@ -139,6 +160,8 @@ public class LocalMusicPlugin extends Plugin {
             return;
         }
         currentIndex = nextIndex();
+        savedPositionSeconds = 0;
+        persistPlaybackState(true);
         playCurrent(call);
     }
 
@@ -149,37 +172,47 @@ public class LocalMusicPlugin extends Plugin {
             return;
         }
         currentIndex = Math.max(0, currentIndex - 1);
+        savedPositionSeconds = 0;
+        persistPlaybackState(true);
         playCurrent(call);
     }
 
     @PluginMethod
     public void seek(PluginCall call) {
         int position = call.getInt("position", 0);
+        savedPositionSeconds = Math.max(0, position);
         if (player != null && prepared) {
-            player.seekTo(Math.max(0, position) * 1000);
+            player.seekTo(savedPositionSeconds * 1000);
         }
+        persistPlaybackState(true);
         resolveWithState(call);
     }
 
     @PluginMethod
     public void setShuffle(PluginCall call) {
         shuffle = call.getBoolean("enabled", false);
+        persistPlaybackState(true);
         resolveWithState(call);
     }
 
     @PluginMethod
     public void setRepeat(PluginCall call) {
         repeatMode = normalizeRepeat(call.getString("mode", "off"));
+        persistPlaybackState(true);
         resolveWithState(call);
     }
 
     @PluginMethod
     public void getState(PluginCall call) {
+        if (queue.isEmpty()) {
+            restoreSavedState();
+        }
         resolveWithState(call);
     }
 
     @Override
     protected void handleOnDestroy() {
+        persistPlaybackState(true);
         stopTicker();
         releasePlayer();
         super.handleOnDestroy();
@@ -352,8 +385,12 @@ public class LocalMusicPlugin extends Plugin {
     }
 
     private void playCurrent(PluginCall call) {
+        playCurrent(call, 0);
+    }
+
+    private void playCurrent(PluginCall call, int startPositionSeconds) {
         if (currentIndex < 0 || currentIndex >= queue.size()) {
-            call.reject("No local track selected.");
+            if (call != null) call.reject("No local track selected.");
             return;
         }
         LocalTrack track = queue.get(currentIndex);
@@ -364,21 +401,33 @@ public class LocalMusicPlugin extends Plugin {
             player.setDataSource(getContext(), Uri.parse(track.uri));
             player.setOnPreparedListener(mediaPlayer -> {
                 prepared = true;
+                int boundedPosition = boundedResumePosition(track, startPositionSeconds);
+                if (boundedPosition > 0) {
+                    mediaPlayer.seekTo(boundedPosition * 1000);
+                }
+                savedPositionSeconds = boundedPosition;
                 mediaPlayer.start();
                 startTicker();
+                persistPlaybackState(true);
                 resolveWithState(call);
             });
             player.setOnCompletionListener(mediaPlayer -> {
                 if ("one".equals(repeatMode)) {
                     mediaPlayer.seekTo(0);
                     mediaPlayer.start();
+                    savedPositionSeconds = 0;
+                    persistPlaybackState(true);
                     notifyState();
                     return;
                 }
                 if (currentIndex < queue.size() - 1 || "all".equals(repeatMode) || shuffle) {
                     currentIndex = nextIndex();
+                    savedPositionSeconds = 0;
+                    persistPlaybackState(true);
                     playCurrent(null);
                 } else {
+                    savedPositionSeconds = 0;
+                    persistPlaybackState(true);
                     notifyState();
                 }
             });
@@ -390,7 +439,13 @@ public class LocalMusicPlugin extends Plugin {
             });
             player.prepareAsync();
         } catch (Throwable error) {
-            call.reject("Unable to play local track: " + rootMessage(error));
+            if (call != null) {
+                call.reject("Unable to play local track: " + rootMessage(error));
+            } else {
+                JSObject payload = new JSObject();
+                payload.put("message", "Unable to play local track: " + rootMessage(error));
+                notifyListeners("playbackError", payload);
+            }
         }
     }
 
@@ -413,21 +468,156 @@ public class LocalMusicPlugin extends Plugin {
         notifyListeners("playbackState", statePayload());
     }
 
+    private int currentPositionSeconds() {
+        if (player != null && prepared) {
+            try {
+                return Math.max(0, player.getCurrentPosition() / 1000);
+            } catch (Throwable ignored) {
+                return savedPositionSeconds;
+            }
+        }
+        return savedPositionSeconds;
+    }
+
+    private int currentDurationSeconds() {
+        if (player != null && prepared) {
+            try {
+                return Math.max(1, player.getDuration() / 1000);
+            } catch (Throwable ignored) {
+                return currentTrackDurationSeconds();
+            }
+        }
+        return currentTrackDurationSeconds();
+    }
+
+    private int currentTrackDurationSeconds() {
+        if (currentIndex >= 0 && currentIndex < queue.size()) {
+            return Math.max(1, queue.get(currentIndex).duration);
+        }
+        return 0;
+    }
+
+    private int resumePositionSeconds() {
+        if (player != null && prepared) return currentPositionSeconds();
+        if (currentIndex >= 0 && currentIndex < queue.size()) {
+            return boundedResumePosition(queue.get(currentIndex), savedPositionSeconds);
+        }
+        return 0;
+    }
+
+    private int boundedResumePosition(LocalTrack track, int positionSeconds) {
+        int duration = Math.max(1, track.duration);
+        int position = Math.max(0, positionSeconds);
+        if (position >= duration - 3) return 0;
+        return Math.min(position, duration - 1);
+    }
+
     private JSObject statePayload() {
         JSObject payload = new JSObject();
         boolean isPlaying = player != null && prepared && player.isPlaying();
+        savedPositionSeconds = currentPositionSeconds();
         payload.put("isPlaying", isPlaying);
-        payload.put("state", isPlaying ? "playing" : prepared ? "paused" : "stopped");
-        payload.put("position", player != null && prepared ? Math.max(0, player.getCurrentPosition() / 1000) : 0);
-        payload.put("duration", player != null && prepared ? Math.max(1, player.getDuration() / 1000) : 0);
+        payload.put("state", isPlaying ? "playing" : currentIndex >= 0 && currentIndex < queue.size() ? "paused" : "stopped");
+        payload.put("position", savedPositionSeconds);
+        payload.put("duration", currentDurationSeconds());
         payload.put("shuffle", shuffle);
         payload.put("repeatMode", repeatMode);
         payload.put("index", currentIndex);
         payload.put("queueLength", queue.size());
+        JSArray queueArray = new JSArray();
+        for (LocalTrack track : queue) {
+            queueArray.put(track.toJS());
+        }
+        payload.put("queue", queueArray);
         if (currentIndex >= 0 && currentIndex < queue.size()) {
             payload.put("track", queue.get(currentIndex).toJS());
         }
         return payload;
+    }
+
+    private void persistPlaybackState(boolean force) {
+        if (queue.isEmpty() || currentIndex < 0 || currentIndex >= queue.size()) return;
+
+        long now = System.currentTimeMillis();
+        if (!force && now - lastPersistAt < PERSIST_INTERVAL_MS) return;
+        lastPersistAt = now;
+
+        try {
+            int position = currentPositionSeconds();
+            if (currentIndex >= 0 && currentIndex < queue.size()) {
+                position = boundedResumePosition(queue.get(currentIndex), position);
+            }
+            savedPositionSeconds = position;
+
+            JSONArray queueJson = new JSONArray();
+            for (LocalTrack track : queue) {
+                queueJson.put(track.toJS());
+            }
+
+            JSONObject state = new JSONObject();
+            state.put("queue", queueJson);
+            state.put("index", currentIndex);
+            state.put("position", savedPositionSeconds);
+            state.put("shuffle", shuffle);
+            state.put("repeatMode", repeatMode);
+            state.put("wasPlaying", player != null && prepared && player.isPlaying());
+            state.put("trackId", queue.get(currentIndex).id);
+            state.put("updatedAt", now);
+
+            playbackPrefs().edit().putString(PLAYBACK_STATE_KEY, state.toString()).apply();
+        } catch (Throwable ignored) {}
+    }
+
+    private void restoreSavedState() {
+        if (!queue.isEmpty()) return;
+
+        String rawState = playbackPrefs().getString(PLAYBACK_STATE_KEY, null);
+        if (TextUtils.isEmpty(rawState)) return;
+
+        try {
+            JSONObject state = new JSONObject(rawState);
+            JSONArray queueJson = state.optJSONArray("queue");
+            if (queueJson == null || queueJson.length() == 0) return;
+
+            List<LocalTrack> restoredQueue = new ArrayList<>();
+            String trackId = state.optString("trackId", "");
+            int restoredIndex = -1;
+
+            for (int index = 0; index < queueJson.length(); index += 1) {
+                JSONObject item = queueJson.optJSONObject(index);
+                LocalTrack track = LocalTrack.fromJS(item == null ? null : JSObject.fromJSONObject(item));
+                if (track == null || !isRestorableTrack(track)) continue;
+                if (!TextUtils.isEmpty(trackId) && trackId.equals(track.id)) {
+                    restoredIndex = restoredQueue.size();
+                }
+                restoredQueue.add(track);
+            }
+
+            if (restoredQueue.isEmpty()) {
+                playbackPrefs().edit().remove(PLAYBACK_STATE_KEY).apply();
+                return;
+            }
+
+            queue.clear();
+            queue.addAll(restoredQueue);
+            currentIndex = restoredIndex >= 0
+                ? restoredIndex
+                : Math.max(0, Math.min(state.optInt("index", 0), queue.size() - 1));
+            shuffle = state.optBoolean("shuffle", false);
+            repeatMode = normalizeRepeat(state.optString("repeatMode", "off"));
+            savedPositionSeconds = boundedResumePosition(queue.get(currentIndex), state.optInt("position", 0));
+        } catch (Throwable ignored) {}
+    }
+
+    private boolean isRestorableTrack(LocalTrack track) {
+        Uri uri = Uri.parse(track.uri);
+        if (!"file".equals(uri.getScheme())) return true;
+        String path = uri.getPath();
+        return !TextUtils.isEmpty(path) && new File(path).exists();
+    }
+
+    private SharedPreferences playbackPrefs() {
+        return getContext().getSharedPreferences(PLAYBACK_PREFS, Context.MODE_PRIVATE);
     }
 
     private void releasePlayer() {

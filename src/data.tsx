@@ -88,6 +88,7 @@ export interface LocalMusicMenuState {
   tracks?: LocalMusicTrack[];
   musicDirectory?: string;
   currentTrack?: LocalMusicTrack;
+  continuationMode?: 'album' | 'library';
   isScanning?: boolean;
 }
 
@@ -315,6 +316,19 @@ const generateLocalMusicChildren = (state: LocalMusicMenuState = {}): MenuNode[]
         state.message || 'Scan local audio files.',
         `${tracks.length} songs cached`,
         state.musicDirectory ? `App folder: ${state.musicDirectory}` : 'Reads Android audio library and app Music folder.',
+      ],
+    },
+    {
+      id: 'local_continuation',
+      title: `Continue: ${state.continuationMode === 'album' ? 'Album' : 'Library'}`,
+      type: 'localMusicStatus',
+      action: 'local_toggle_continuation',
+      statusTone: 'neutral',
+      detailLines: [
+        state.continuationMode === 'album'
+          ? 'After an album or artist list ends, playback stops in that context.'
+          : 'After an album or artist list ends, playback continues through the local library.',
+        'Select toggles Album / Library.',
       ],
     },
   ];

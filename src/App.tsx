@@ -12,6 +12,9 @@ interface StackItem {
   cursorIndex: number;
 }
 
+type ContinuationMode = 'album' | 'library';
+
+const CONTINUATION_MODE_KEY = 'squarepod.localContinuationMode.v1';
 const PLAYBACK_MODE_ORDER: PlaybackMode[] = ['sequential', 'shuffle', 'repeatAll', 'repeatOne'];
 const COVER_FLOW_MAX_STEPS_PER_INPUT = 4;
 const COVER_FLOW_SELECT_HERO_MS = 560;
@@ -54,6 +57,18 @@ const localQueueFromMenu = (node: MenuNode) => (
     .filter((track): track is LocalMusicTrack => Boolean(track)) || []
 );
 
+const readContinuationMode = (): ContinuationMode => {
+  if (typeof window === 'undefined') return 'library';
+  return window.localStorage.getItem(CONTINUATION_MODE_KEY) === 'album' ? 'album' : 'library';
+};
+
+const writeContinuationMode = (mode: ContinuationMode) => {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(CONTINUATION_MODE_KEY, mode);
+};
+
+const localTrackKey = (track: LocalMusicTrack) => track.id || track.uri;
+
 export default function App() {
   const coverFlowSelectTimerRef = useRef<number | null>(null);
   const coverFlowSelectingRef = useRef(false);
@@ -61,6 +76,7 @@ export default function App() {
   const [coverFlowIsDragging, setCoverFlowIsDragging] = useState(false);
   const [coverFlowRelease, setCoverFlowRelease] = useState({ id: 0, velocity: 0 });
   const [playbackQueue, setPlaybackQueue] = useState<LocalMusicTrack[]>([]);
+  const [continuationMode, setContinuationMode] = useState<ContinuationMode>(readContinuationMode);
   const localMusic = useLocalMusic();
   const {
     isPlaying,
@@ -85,6 +101,7 @@ export default function App() {
     tracks: localMusic.tracks,
     musicDirectory: localMusic.musicDirectory,
     currentTrack: localMusic.currentTrack,
+    continuationMode,
     isScanning: localMusic.status === 'working',
   }), [
     localMusic.status,
@@ -92,6 +109,7 @@ export default function App() {
     localMusic.tracks,
     localMusic.musicDirectory,
     currentTrackMenuKey,
+    continuationMode,
   ]);
 
   const [stack, setStack] = useState<StackItem[]>([{ node: rootMenu, cursorIndex: 0 }]);
@@ -199,7 +217,9 @@ export default function App() {
   };
 
   const handleRotate = (steps: number) => {
-    const activePlaybackQueue = playbackQueue.length ? playbackQueue : localMusic.tracks;
+    const activePlaybackQueue = playbackQueue.length
+      ? playbackQueue
+      : localMusic.playbackQueue.length ? localMusic.playbackQueue : localMusic.tracks;
     if (currentNode.type === 'nowPlaying' && steps !== 0 && activePlaybackQueue.length) {
       const currentQueueIndex = Math.max(
         0,
@@ -240,6 +260,13 @@ export default function App() {
       case 'local_music_scan':
         await localMusic.scanLibrary();
         break;
+      case 'local_toggle_continuation':
+        setContinuationMode(currentMode => {
+          const nextMode: ContinuationMode = currentMode === 'library' ? 'album' : 'library';
+          writeContinuationMode(nextMode);
+          return nextMode;
+        });
+        break;
       case 'player_shuffle_all':
         await setPlaybackMode('shuffle');
         setPlaybackQueue(localMusic.tracks);
@@ -252,6 +279,40 @@ export default function App() {
       default:
         break;
     }
+  };
+
+  const queueWithContinuation = (contextNode: MenuNode, queue: LocalMusicTrack[], selectedIndex: number) => {
+    if (
+      continuationMode !== 'library' ||
+      contextNode.id === 'local_all_songs' ||
+      contextNode.id === 'now_playing_queue' ||
+      !queue.length ||
+      !localMusic.tracks.length ||
+      queue.length >= localMusic.tracks.length
+    ) {
+      return { queue, selectedIndex };
+    }
+
+    const contextTrackKeys = new Set(queue.map(localTrackKey));
+    const continuationTracks = localMusic.tracks.filter(track => !contextTrackKeys.has(localTrackKey(track)));
+    if (!continuationTracks.length) return { queue, selectedIndex };
+
+    return {
+      queue: [...queue, ...continuationTracks],
+      selectedIndex,
+    };
+  };
+
+  const startLocalQueue = (contextNode: MenuNode, queue: LocalMusicTrack[], selectedIndex: number) => {
+    const playback = queueWithContinuation(contextNode, queue, selectedIndex);
+    setPlaybackQueue(playback.queue);
+    playQueue(playback.queue, playback.selectedIndex)
+      .then(() => {
+        setStack(prev => [...prev, { node: nowPlayingNode, cursorIndex: 0 }]);
+      })
+      .catch(error => {
+        console.error('Local playback failed', error);
+      });
   };
 
   const handleSelect = () => {
@@ -267,14 +328,7 @@ export default function App() {
     if (currentNode.type === 'songDetail' && currentNode.localTrack) {
       const queue = currentNode.localQueue?.length ? currentNode.localQueue : [currentNode.localTrack];
       const selectedIndex = Math.max(0, currentNode.localQueueIndex ?? queue.findIndex(track => track.id === currentNode.localTrack?.id));
-      setPlaybackQueue(queue);
-      playQueue(queue, selectedIndex)
-        .then(() => {
-          setStack(prev => [...prev, { node: nowPlayingNode, cursorIndex: 0 }]);
-        })
-        .catch(error => {
-          console.error('Local playback failed', error);
-        });
+      startLocalQueue(currentNode, queue, selectedIndex);
       return;
     }
 
@@ -313,14 +367,7 @@ export default function App() {
        const localTracks = localQueueFromMenu(currentNode);
        const queue = localTracks.length ? localTracks : [selectedChild.localTrack];
        const selectedIndex = Math.max(0, queue.findIndex(track => track.id === selectedChild.localTrack?.id));
-       setPlaybackQueue(queue);
-       playQueue(queue, selectedIndex)
-         .then(() => {
-           setStack(prev => [...prev, { node: nowPlayingNode, cursorIndex: 0 }]);
-         })
-         .catch(error => {
-           console.error('Local playback failed', error);
-         });
+       startLocalQueue(currentNode, queue, selectedIndex);
     } else if (selectedChild.id.startsWith('song_')) {
        setStack(prev => [
          ...prev,
@@ -370,10 +417,10 @@ export default function App() {
 
   return (
     <div className="w-screen h-screen bg-black flex items-center justify-center p-0 font-sans overflow-hidden">
-      <div className="relative w-[min(100vw,100vh)] h-[min(100vw,100vh)] bg-gradient-to-br from-gray-50 to-gray-200 rounded-[56px] shadow-[0_35px_60px_-15px_rgba(0,0,0,0.3)] border-8 border-white px-5 pt-5 pb-6 flex flex-col items-center">
+      <div className="relative w-[min(100vw,100vh)] h-[min(100vw,100vh)] bg-gradient-to-br from-gray-50 to-gray-200 rounded-[56px] shadow-[0_35px_60px_-15px_rgba(0,0,0,0.3)] border-8 border-white px-5 pt-4 pb-3 flex flex-col items-center">
         
         {/* Top Section: Screen */}
-        <div className="w-full h-[56%] shrink-0 pb-1">
+        <div className="w-full h-[56%] shrink-0 pb-0">
           <Screen 
             currentNode={currentNode} 
             cursorIndex={cursorIndex} 
@@ -390,7 +437,7 @@ export default function App() {
         </div>
 
         {/* Bottom Section: Click Wheel */}
-        <div className="w-full flex-1 flex items-end justify-center relative min-h-0 pb-1">
+        <div className="w-full flex-1 flex items-end justify-center relative min-h-0 pb-0 translate-y-[7px]">
           <ClickWheel 
             onRotate={handleRotate}
             onSelect={handleSelect}

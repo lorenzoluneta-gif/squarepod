@@ -1,7 +1,9 @@
 import React from 'react';
 import { RotateEndMeta, useWheel } from '../useWheel';
+import { playOuterButtonClick, playSelectClick, playWheelTick, unlockUiAudio } from '../audio/uiSounds';
 
 const CLICK_WHEEL_SENSITIVITY = Math.PI / 6;
+const OUTER_BUTTON_SOUND_DELAY_MS = 70;
 
 interface ClickWheelProps {
   onRotate: (steps: number) => void;
@@ -24,6 +26,21 @@ export function ClickWheel({
   onRotateStart,
   onRotateEnd,
 }: ClickWheelProps) {
+  const pendingOuterButtonSoundRef = React.useRef<number | null>(null);
+
+  const clearPendingOuterButtonSound = () => {
+    if (pendingOuterButtonSoundRef.current === null) return;
+    window.clearTimeout(pendingOuterButtonSoundRef.current);
+    pendingOuterButtonSoundRef.current = null;
+  };
+
+  const scheduleOuterButtonSound = () => {
+    clearPendingOuterButtonSound();
+    pendingOuterButtonSoundRef.current = window.setTimeout(() => {
+      pendingOuterButtonSoundRef.current = null;
+      playOuterButtonClick();
+    }, OUTER_BUTTON_SOUND_DELAY_MS);
+  };
 
   const handleZoneClick = (angle: number) => {
     if (angle >= -Math.PI * 0.75 && angle <= -Math.PI * 0.25) {
@@ -37,10 +54,47 @@ export function ClickWheel({
     }
   };
 
+  const handleWheelRotate = (steps: number) => {
+    clearPendingOuterButtonSound();
+    playWheelTick(steps);
+    onRotate(steps);
+  };
+
+  const handleWheelPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    unlockUiAudio();
+    scheduleOuterButtonSound();
+    handlePointerDown(event);
+  };
+
+  const handleWheelPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    handlePointerMove(event);
+  };
+
+  const handleWheelPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    handlePointerUp(event);
+  };
+
+  const handleWheelPointerCancel = (event: React.PointerEvent<HTMLDivElement>) => {
+    clearPendingOuterButtonSound();
+    handlePointerUp(event);
+  };
+
+  const handleSelectPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    clearPendingOuterButtonSound();
+    event.stopPropagation();
+    unlockUiAudio();
+    playSelectClick();
+  };
+
+  const handleRotateStartWithSoundCancel = () => {
+    clearPendingOuterButtonSound();
+    onRotateStart?.();
+  };
+
   const { wheelRef, handlePointerDown, handlePointerMove, handlePointerUp } = useWheel({ 
-    onRotate,
+    onRotate: handleWheelRotate,
     onClickZone: handleZoneClick,
-    onRotateStart,
+    onRotateStart: handleRotateStartWithSoundCancel,
     onRotateEnd,
     sensitivity: CLICK_WHEEL_SENSITIVITY,
   });
@@ -49,11 +103,11 @@ export function ClickWheel({
     <div className="relative w-full h-full flex items-center justify-center select-none" style={{ touchAction: 'none' }}>
       <div 
         ref={wheelRef}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-        className="h-full max-h-[290px] aspect-square rounded-full bg-white shadow-[0_10px_20px_rgba(0,0,0,0.1),inset_0_1px_4px_rgba(0,0,0,0.1)] border border-gray-100 flex items-center justify-center relative touch-none pointer-events-auto cursor-pointer"
+        onPointerDown={handleWheelPointerDown}
+        onPointerMove={handleWheelPointerMove}
+        onPointerUp={handleWheelPointerUp}
+        onPointerCancel={handleWheelPointerCancel}
+        className="h-[calc(100%+7px)] max-h-[343px] aspect-square rounded-full bg-white shadow-[0_10px_20px_rgba(0,0,0,0.1),inset_0_1px_4px_rgba(0,0,0,0.1)] border border-gray-100 flex items-center justify-center relative touch-none pointer-events-auto cursor-pointer"
       >
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-[30%] flex justify-center items-start pt-[15%] text-[#9CA3AF] font-bold text-sm tracking-[0.15em] uppercase pointer-events-none">
           MENU
@@ -80,10 +134,12 @@ export function ClickWheel({
           </svg>
         </div>
 
-        {/* Center Select Button */}
+        {/* Center Select visual stays large; the transparent hit target is smaller to avoid stealing outer-button taps. */}
+        <div className="absolute left-1/2 top-1/2 z-10 h-[35%] w-[35%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-gray-400 bg-gradient-to-b from-gray-100 to-gray-300 shadow-[0_2px_4px_rgba(0,0,0,0.15)] pointer-events-none" />
         <button 
-          className="w-[35%] h-[35%] rounded-full bg-gradient-to-b from-gray-100 to-gray-300 shadow-[0_2px_4px_rgba(0,0,0,0.15)] border border-gray-400 cursor-pointer active:scale-95 transition-transform z-20 pointer-events-auto"
-          onPointerDown={e => e.stopPropagation()}
+          aria-label="Select"
+          className="absolute left-1/2 top-1/2 z-20 h-[24%] w-[24%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-transparent cursor-pointer pointer-events-auto"
+          onPointerDown={handleSelectPointerDown}
           onClick={onSelect}
         />
       </div>
