@@ -1,7 +1,9 @@
 import { Song, MenuNode } from './types';
 import React from 'react';
 import { PlayCircle, Film, Image as ImageIcon, Mic, Settings, Shuffle, Clock, FileText, Calendar, Gamepad2, Info } from 'lucide-react';
+import { LocalMusicTrack } from './native/localMusic';
 import { AppleMusicPlaylist, AppleMusicSong } from './services/appleMusic';
+import { SpotifyPlaylist, SpotifyPlaylistTrack, SpotifyShortcut, SpotifyTrack } from './services/spotify';
 
 export const DUMMY_SONGS: Song[] = [
   {
@@ -61,6 +63,34 @@ export interface AppleMusicMenuState {
   isSyncing?: boolean;
 }
 
+export interface SpotifyMenuState {
+  status?: string;
+  message?: string;
+  connected?: boolean;
+  spotifyInstalled?: boolean;
+  clientId?: string;
+  redirectUri?: string;
+  shortcuts?: SpotifyShortcut[];
+  playlists?: SpotifyPlaylist[];
+  tracksByPlaylist?: Record<string, SpotifyPlaylistTrack[]>;
+  allTracks?: SpotifyPlaylistTrack[];
+  lastSyncedAt?: number;
+  hasWebToken?: boolean;
+  currentTrack?: SpotifyTrack;
+  canPlayOnDemand?: boolean;
+  isWorking?: boolean;
+  isSyncing?: boolean;
+}
+
+export interface LocalMusicMenuState {
+  status?: string;
+  message?: string;
+  tracks?: LocalMusicTrack[];
+  musicDirectory?: string;
+  currentTrack?: LocalMusicTrack;
+  isScanning?: boolean;
+}
+
 const songToMenuNode = (song: Song): MenuNode => ({
   id: `song_${song.id}`,
   title: song.title,
@@ -91,6 +121,204 @@ const safeNodeId = (value: string) => value
   .replace(/[^a-z0-9]+/g, '_')
   .replace(/^_+|_+$/g, '')
   || 'unknown';
+
+const stableHash = (value: string) => {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+};
+
+const stableNodeId = (prefix: string, value: string) => `${prefix}_${stableHash(value || 'unknown')}`;
+
+const normalizeLocalAlbumKey = (track: LocalMusicTrack) => (
+  `${(track.album || 'Unknown Album').trim().toLowerCase()}|${(track.artist || 'Unknown Artist').trim().toLowerCase()}`
+);
+
+const localTrackToMenuNode = (track: LocalMusicTrack): MenuNode => ({
+  id: stableNodeId('local_track', track.id || track.uri || `${track.title}|${track.artist}|${track.album}`),
+  title: track.title || 'Unknown Title',
+  type: 'songDetail',
+  previewImage: track.artworkUri,
+  localTrack: track,
+  detailLines: [
+    track.artist || 'Unknown Artist',
+    track.album || 'Unknown Album',
+    'Local audio file',
+  ],
+});
+
+const sortLocalTracks = (tracks: LocalMusicTrack[]) => [...tracks].sort((left, right) => {
+  const artistSort = (left.artist || '').localeCompare(right.artist || '', undefined, { sensitivity: 'base' });
+  if (artistSort) return artistSort;
+  const albumSort = (left.album || '').localeCompare(right.album || '', undefined, { sensitivity: 'base' });
+  if (albumSort) return albumSort;
+  const trackSort = (left.trackNumber || 0) - (right.trackNumber || 0);
+  if (trackSort) return trackSort;
+  return (left.title || '').localeCompare(right.title || '', undefined, { sensitivity: 'base' });
+});
+
+const generateLocalCoverFlowNode = (tracks: LocalMusicTrack[]): MenuNode => {
+  const albumMap = new Map<string, LocalMusicTrack[]>();
+
+  sortLocalTracks(tracks).forEach(track => {
+    const key = normalizeLocalAlbumKey(track);
+    const albumTracks = albumMap.get(key) || [];
+    albumTracks.push(track);
+    albumMap.set(key, albumTracks);
+  });
+
+  const albums = [...albumMap.entries()]
+    .sort(([, left], [, right]) => {
+      const albumSort = (left[0].album || '').localeCompare(right[0].album || '', undefined, { sensitivity: 'base' });
+      return albumSort || (left[0].artist || '').localeCompare(right[0].artist || '', undefined, { sensitivity: 'base' });
+    })
+    .map(([key, albumTracks], index): MenuNode => {
+      const firstTrack = albumTracks[0];
+      const artworkTrack = albumTracks.find(track => Boolean(track.artworkUri)) || firstTrack;
+
+      return {
+        id: stableNodeId('cover_album', key || String(index)),
+        title: firstTrack.album || 'Unknown Album',
+        type: 'menu',
+        previewImage: artworkTrack.artworkUri,
+        localAlbumKey: key,
+        detailLines: [
+          firstTrack.artist || 'Unknown Artist',
+          `${albumTracks.length} song${albumTracks.length === 1 ? '' : 's'}`,
+        ],
+        children: albumTracks.map(localTrackToMenuNode),
+      };
+    });
+
+  return {
+    id: 'local_cover_flow',
+    title: 'Cover Flow',
+    type: 'coverFlow',
+    detailLines: albums.length
+      ? [`${albums.length} albums`, 'Browse local albums.']
+      : ['Scan local music first.'],
+    children: albums,
+  };
+};
+
+const groupLocalTracks = (
+  tracks: LocalMusicTrack[],
+  idPrefix: string,
+  getKey: (track: LocalMusicTrack) => string,
+  getTitle: (track: LocalMusicTrack) => string,
+): MenuNode[] => {
+  const groups = new Map<string, LocalMusicTrack[]>();
+
+  sortLocalTracks(tracks).forEach(track => {
+    const key = getKey(track);
+    const groupTracks = groups.get(key) || [];
+    groupTracks.push(track);
+    groups.set(key, groupTracks);
+  });
+
+  return [...groups.entries()]
+    .sort(([left], [right]) => left.localeCompare(right, undefined, { sensitivity: 'base' }))
+    .map(([key, groupTracks]) => ({
+      id: stableNodeId(idPrefix, key),
+      title: getTitle(groupTracks[0]),
+      type: 'menu',
+      previewImage: groupTracks.find(track => Boolean(track.artworkUri))?.artworkUri,
+      detailLines: [`${groupTracks.length} song${groupTracks.length === 1 ? '' : 's'}`],
+      children: groupTracks.map(localTrackToMenuNode),
+    }));
+};
+
+const generateLocalMusicChildren = (state: LocalMusicMenuState = {}): MenuNode[] => {
+  const tracks = sortLocalTracks(state.tracks || []);
+  const statusTone = state.status === 'success' || state.status === 'ready'
+    ? 'success'
+    : state.status === 'error' || state.status === 'needsPermission' ? 'error' : 'warning';
+
+  return [
+    {
+      id: 'now_playing_menu',
+      title: 'Now Playing',
+      type: 'nowPlaying',
+      detailLines: [
+        state.currentTrack ? `${state.currentTrack.title} - ${state.currentTrack.artist}` : 'No local song playing.',
+        'Select switches playback mode.',
+      ],
+    },
+    generateLocalCoverFlowNode(tracks),
+    {
+      id: 'local_all_songs',
+      title: 'All Songs',
+      type: 'menu',
+      detailLines: [
+        `${tracks.length} local songs`,
+        'Songs found on this Android device.',
+      ],
+      children: tracks.length
+        ? tracks.map(localTrackToMenuNode)
+        : [{
+            id: 'local_no_all_songs',
+            title: 'No Songs',
+            type: 'localMusicStatus',
+            statusTone: 'warning',
+            detailLines: ['Select Scan first.'],
+          }],
+    },
+    {
+      id: 'local_artists',
+      title: 'Artists',
+      type: 'menu',
+      children: tracks.length
+        ? groupLocalTracks(
+            tracks,
+            'local_artist',
+            track => track.artist || 'Unknown Artist',
+            track => track.artist || 'Unknown Artist',
+          )
+        : [{
+            id: 'local_no_artists',
+            title: 'No Artists',
+            type: 'localMusicStatus',
+            statusTone: 'warning',
+            detailLines: ['Select Scan first.'],
+          }],
+    },
+    {
+      id: 'local_albums',
+      title: 'Albums',
+      type: 'menu',
+      children: tracks.length
+        ? groupLocalTracks(
+            tracks,
+            'local_album',
+            track => normalizeLocalAlbumKey(track),
+            track => track.album || 'Unknown Album',
+          )
+        : [{
+            id: 'local_no_albums',
+            title: 'No Albums',
+            type: 'localMusicStatus',
+            statusTone: 'warning',
+            detailLines: ['Select Scan first.'],
+          }],
+    },
+    {
+      id: 'local_scan',
+      title: state.isScanning ? 'Scanning...' : 'Scan',
+      type: 'localMusicStatus',
+      action: 'local_music_scan',
+      isLoading: state.isScanning,
+      statusTone,
+      detailLines: [
+        state.message || 'Scan local audio files.',
+        `${tracks.length} songs cached`,
+        state.musicDirectory ? `App folder: ${state.musicDirectory}` : 'Reads Android audio library and app Music folder.',
+      ],
+    },
+  ];
+};
 
 const generateCoverFlowNode = (songs: AppleMusicSong[]): MenuNode => {
   const albumMap = new Map<string, AppleMusicSong[]>();
@@ -288,22 +516,242 @@ export const generateAppleMusicMenu = (state: AppleMusicMenuState = {}): MenuNod
   children: generateAppleMusicChildren(state),
 });
 
-export const generateMusicMenu = (appleMusic: AppleMusicMenuState = {}): MenuNode => {
+const spotifyShortcutToMenuNode = (shortcut: SpotifyShortcut): MenuNode => ({
+  id: shortcut.id,
+  title: shortcut.title,
+  type: 'menu',
+  spotifyUri: shortcut.uri,
+  spotifyShortcut: shortcut,
+  detailLines: [
+    shortcut.subtitle || 'Spotify URI shortcut',
+    shortcut.uri,
+  ],
+});
+
+const spotifyTrackToMenuNode = (track: SpotifyTrack): MenuNode => ({
+  id: `spotify_track_${track.uri.replace(/[^a-zA-Z0-9]+/g, '_')}`,
+  title: track.title,
+  type: 'menu',
+  previewImage: track.artworkUrl,
+  spotifyUri: track.uri,
+  spotifyTrack: track,
+  detailLines: [
+    track.artist,
+    track.album,
+    'Current Spotify track',
+  ],
+});
+
+const spotifyPlaylistTrackToMenuNode = (track: SpotifyPlaylistTrack): MenuNode => ({
+  id: `spotify_playlist_track_${track.playlistId}_${track.position}_${track.uri.replace(/[^a-zA-Z0-9]+/g, '_')}`,
+  title: track.title,
+  type: 'menu',
+  previewImage: track.artworkUrl,
+  spotifyUri: track.uri,
+  spotifyPlaylistTrack: track,
+  spotifyTrack: track,
+  detailLines: [
+    track.artist,
+    track.album,
+    track.playlistName,
+  ],
+});
+
+const spotifyPlaylistToMenuNode = (
+  playlist: SpotifyPlaylist,
+  tracks: SpotifyPlaylistTrack[] | undefined,
+): MenuNode => ({
+  id: `spotify_playlist_${playlist.id}`,
+  title: playlist.name,
+  type: 'menu',
+  previewImage: playlist.imageUrl,
+  spotifyUri: playlist.uri,
+  spotifyPlaylist: playlist,
+  detailLines: [
+    playlist.ownerName ? `By ${playlist.ownerName}` : 'Spotify playlist',
+    `${tracks?.length ?? playlist.trackTotal} songs`,
+    playlist.description || playlist.uri,
+  ],
+  children: tracks?.length
+    ? tracks.map(spotifyPlaylistTrackToMenuNode)
+    : [{
+        id: `spotify_playlist_${playlist.id}_empty`,
+        title: 'No Songs',
+        type: 'spotifyStatus',
+        detailLines: ['Sync this playlist again.'],
+      }],
+});
+
+const generateSpotifyCoverFlowNode = (
+  playlists: SpotifyPlaylist[],
+  tracksByPlaylist: Record<string, SpotifyPlaylistTrack[]>,
+): MenuNode => ({
+  id: 'spotify_cover_flow',
+  title: 'Cover Flow',
+  type: 'coverFlow',
+  detailLines: playlists.length
+    ? [`${playlists.length} playlists`, 'Browse synced Spotify playlists.']
+    : ['Sync Spotify playlists first.'],
+  children: playlists.map(playlist => spotifyPlaylistToMenuNode(playlist, tracksByPlaylist[playlist.id])),
+});
+
+const generateSpotifyChildren = (state: SpotifyMenuState = {}): MenuNode[] => {
+  const shortcuts = state.shortcuts || [];
+  const playlists = state.playlists || [];
+  const tracksByPlaylist = state.tracksByPlaylist || {};
+  const allTracks = state.allTracks || [];
+  const needsConfig = !state.clientId || !state.spotifyInstalled;
+  const syncLine = state.lastSyncedAt
+    ? `Synced ${new Date(state.lastSyncedAt).toLocaleString()}`
+    : 'Not synced yet';
+  const statusTone = state.status === 'success' || state.status === 'ready'
+    ? 'success'
+    : state.status === 'error' || state.status === 'needsConfig' ? 'error' : 'warning';
+
+  const connectionNodes: MenuNode[] = [
+    {
+      id: 'spotify_connect',
+      title: state.connected ? 'Connected' : 'Connect',
+      type: 'spotifyStatus',
+      action: 'spotify_connect',
+      isLoading: state.isWorking,
+      statusTone,
+      detailLines: [
+        state.message || 'Connect to the local Spotify app.',
+        state.spotifyInstalled ? 'Spotify app: installed' : 'Spotify app: missing',
+        state.clientId ? 'Client ID: configured' : 'Client ID: missing',
+      ],
+    },
+  ];
+
+  if (needsConfig) {
+    return [
+      ...connectionNodes,
+      {
+        id: 'spotify_setup',
+        title: 'Setup',
+        type: 'spotifyStatus',
+        statusTone: 'warning',
+        detailLines: [
+          'Install Spotify and set VITE_SPOTIFY_CLIENT_ID.',
+          `Redirect URI: ${state.redirectUri || 'squarepod://spotify-callback'}`,
+          'Whitelist package and SHA fingerprint in Spotify Dashboard.',
+        ],
+      },
+    ];
+  }
+
+  return [
+    {
+      id: 'now_playing_menu',
+      title: 'Now Playing',
+      type: 'nowPlaying',
+      detailLines: [
+        state.connected ? 'Spotify remote is connected.' : 'Connect Spotify first.',
+        'Select switches playback mode.',
+      ],
+    },
+    ...connectionNodes,
+    generateSpotifyCoverFlowNode(playlists, tracksByPlaylist),
+    {
+      id: 'spotify_all_songs',
+      title: 'All Songs',
+      type: 'menu',
+      detailLines: [
+        `${allTracks.length} cached songs`,
+        'Unique tracks from synced playlists.',
+      ],
+      children: allTracks.length
+        ? allTracks.map(spotifyPlaylistTrackToMenuNode)
+        : [{
+            id: 'spotify_no_all_songs',
+            title: 'No Songs',
+            type: 'spotifyStatus',
+            detailLines: ['Run Sync first.'],
+          }],
+    },
+    {
+      id: 'spotify_current_track',
+      title: 'Current Track',
+      type: 'menu',
+      children: state.currentTrack
+        ? [spotifyTrackToMenuNode(state.currentTrack)]
+        : [{
+            id: 'spotify_no_current_track',
+            title: 'No Track',
+            type: 'spotifyStatus',
+            detailLines: ['Start Spotify playback first.'],
+          }],
+    },
+    {
+      id: 'spotify_shortcuts',
+      title: 'Shortcuts',
+      type: 'menu',
+      detailLines: [
+        'Spotify playlist, album, artist, or track URIs.',
+        'Set VITE_SPOTIFY_URIS to customize.',
+      ],
+      children: shortcuts.length
+        ? shortcuts.map(spotifyShortcutToMenuNode)
+        : [{
+            id: 'spotify_no_shortcuts',
+            title: 'No Shortcuts',
+            type: 'spotifyStatus',
+            detailLines: ['Set VITE_SPOTIFY_DEFAULT_URI or VITE_SPOTIFY_URIS.'],
+          }],
+    },
+    {
+      id: 'spotify_sync_library',
+      title: state.isSyncing ? 'Syncing...' : 'Sync',
+      type: 'spotifyStatus',
+      action: 'spotify_sync_library',
+      isLoading: state.isSyncing,
+      statusTone: state.hasWebToken ? 'neutral' : 'warning',
+      detailLines: [
+        state.hasWebToken ? 'Refresh Spotify playlists and tracks.' : 'Sign in to Spotify Web API, then sync.',
+        `${playlists.length} playlists`,
+        `${allTracks.length} cached songs`,
+        syncLine,
+      ],
+    },
+    {
+      id: 'spotify_capabilities',
+      title: 'Account',
+      type: 'spotifyStatus',
+      statusTone: state.canPlayOnDemand ? 'success' : 'warning',
+      detailLines: [
+        state.canPlayOnDemand ? 'On-demand playback available.' : 'On-demand track playback may require Premium.',
+        'Offline playback depends on Spotify app downloads.',
+        'SquarePod does not cache Spotify audio.',
+      ],
+    },
+  ];
+};
+
+export const generateSpotifyMenu = (spotify: SpotifyMenuState = {}): MenuNode => ({
+  id: 'spotify',
+  title: 'Spotify',
+  type: 'menu',
+  previewIcon: <PlayCircle className="w-16 h-16 text-green-500" />,
+  children: generateSpotifyChildren(spotify),
+});
+
+export const generateMusicMenu = (local: LocalMusicMenuState = {}): MenuNode => {
   return {
     id: 'music',
     title: 'Music',
     type: 'menu',
-    previewIcon: <PlayCircle className="w-16 h-16 text-blue-500" />,
-    children: generateAppleMusicChildren(appleMusic)
+    previewIcon: <PlayCircle className="w-16 h-16 text-green-500" />,
+    children: generateLocalMusicChildren(local)
   };
 };
 
-export const generateMenuRoot = (appleMusic: AppleMusicMenuState = {}): MenuNode => ({
+export const generateMenuRoot = (local: LocalMusicMenuState = {}): MenuNode => ({
   id: 'root',
   title: 'iPod',
   type: 'menu',
   children: [
-    generateMusicMenu(appleMusic),
+    generateMusicMenu(local),
     {
       id: 'videos',
       title: 'Videos',
@@ -384,10 +832,10 @@ export const generateMenuRoot = (appleMusic: AppleMusicMenuState = {}): MenuNode
     {
       id: 'shuffle_songs',
       title: 'Shuffle Songs',
-      type: 'appleMusicStatus',
+      type: 'localMusicStatus',
       action: 'player_shuffle_all',
       previewIcon: <Shuffle className="w-16 h-16 text-green-500" />,
-      detailLines: ['Shuffle all synced playlist songs.'],
+      detailLines: ['Shuffle all local songs.'],
     }
   ]
 });

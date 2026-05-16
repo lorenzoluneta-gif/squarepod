@@ -1,10 +1,23 @@
 import React, { ImgHTMLAttributes, useEffect, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 
 const ARTWORK_CACHE_NAME = 'squarepod-artwork-v1';
 const objectUrlCache = new Map<string, string>();
 const pendingArtworkLoads = new Map<string, Promise<string>>();
 
+const resolveLocalArtwork = (sourceUrl?: string) => {
+  if (!sourceUrl) return undefined;
+  if (sourceUrl.startsWith('file://') || sourceUrl.startsWith('content://')) {
+    return Capacitor.convertFileSrc(sourceUrl);
+  }
+  return sourceUrl;
+};
+
 const loadCachedArtwork = async (sourceUrl: string) => {
+  if (sourceUrl.startsWith('file://') || sourceUrl.startsWith('content://')) {
+    return Capacitor.convertFileSrc(sourceUrl);
+  }
+
   const memoryHit = objectUrlCache.get(sourceUrl);
   if (memoryHit) return memoryHit;
 
@@ -56,18 +69,23 @@ interface CachedImageProps extends Omit<ImgHTMLAttributes<HTMLImageElement>, 'sr
 }
 
 export function CachedImage({ src, onError, ...props }: CachedImageProps) {
-  const [cachedSrc, setCachedSrc] = useState(src);
+  const [cachedSrc, setCachedSrc] = useState(resolveLocalArtwork(src));
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setFailed(false);
-    setCachedSrc(src);
 
-    if (!src) return;
+    const localSrc = resolveLocalArtwork(src);
+    setCachedSrc(localSrc);
+
+    if (!src || localSrc !== src) return;
 
     loadCachedArtwork(src).then(nextSrc => {
-      if (!cancelled) setCachedSrc(nextSrc);
+      if (!cancelled) {
+        setFailed(false);
+        setCachedSrc(nextSrc);
+      }
     });
 
     return () => {

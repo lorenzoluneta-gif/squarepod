@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { generateMenuRoot } from './data';
 import { MenuNode, PlaybackMode } from './types';
-import { usePlayer } from './usePlayer';
-import { useAppleMusic } from './useAppleMusic';
+import { useLocalMusic } from './useLocalMusic';
+import { LocalMusicTrack } from './native/localMusic';
 import { ClickWheel } from './components/ClickWheel';
 import { Screen } from './components/Screen';
 import type { RotateEndMeta } from './useWheel';
@@ -20,11 +20,39 @@ const findNodeByPath = (root: MenuNode, path: string[]) => {
   let node = root;
   for (const id of path.slice(1)) {
     const next = node.children?.find(child => child.id === id);
-    if (!next) return node;
+    if (!next) return undefined;
     node = next;
   }
   return node;
 };
+
+const nowPlayingNode: MenuNode = { id: 'now_playing', title: 'Now Playing', type: 'nowPlaying' };
+
+const isDetachedNavigationNode = (node: MenuNode) => (
+  node.id === nowPlayingNode.id ||
+  node.id === 'now_playing_queue' ||
+  node.id.startsWith('queue_track_')
+);
+
+const localTrackNode = (track: LocalMusicTrack, queue: LocalMusicTrack[], index: number): MenuNode => ({
+  id: `queue_track_${track.id || index}`,
+  title: track.title || 'Unknown Title',
+  type: 'songDetail',
+  previewImage: track.artworkUri,
+  localTrack: track,
+  localQueue: queue,
+  localQueueIndex: index,
+  detailLines: [
+    track.artist || 'Unknown Artist',
+    track.album || 'Unknown Album',
+  ],
+});
+
+const localQueueFromMenu = (node: MenuNode) => (
+  node.children
+    ?.map(child => child.localTrack)
+    .filter((track): track is LocalMusicTrack => Boolean(track)) || []
+);
 
 export default function App() {
   const coverFlowSelectTimerRef = useRef<number | null>(null);
@@ -32,7 +60,8 @@ export default function App() {
   const [coverFlowIsSelecting, setCoverFlowIsSelecting] = useState(false);
   const [coverFlowIsDragging, setCoverFlowIsDragging] = useState(false);
   const [coverFlowRelease, setCoverFlowRelease] = useState({ id: 0, velocity: 0 });
-  const appleMusic = useAppleMusic();
+  const [playbackQueue, setPlaybackQueue] = useState<LocalMusicTrack[]>([]);
+  const localMusic = useLocalMusic();
   const {
     isPlaying,
     currentSong,
@@ -41,38 +70,28 @@ export default function App() {
     playPause,
     nextTrack,
     prevTrack,
-    playSongById,
-    playAppleMusicQueue,
     setPlaybackMode,
-  } = usePlayer({
-    getAppleMusicTokens: appleMusic.getPlaybackTokens,
-    onPlaybackError: message => console.error('Apple Music playback failed', message),
-  });
+    playQueue,
+  } = localMusic;
+  const currentTrackMenuKey = [
+    localMusic.currentTrack?.id,
+    localMusic.currentTrack?.title,
+    localMusic.currentTrack?.artist,
+    localMusic.currentTrack?.album,
+  ].join('|');
   const rootMenu = useMemo(() => generateMenuRoot({
-    status: appleMusic.status,
-    message: appleMusic.message,
-    hasUserToken: appleMusic.hasUserToken,
-    defaultSearchTerm: appleMusic.defaultSearchTerm,
-    catalogResults: appleMusic.catalogResults,
-    libraryResults: appleMusic.libraryResults,
-    allMusic: appleMusic.allMusic,
-    playlists: appleMusic.playlists,
-    playlistTracks: appleMusic.playlistTracks,
-    lastSyncedAt: appleMusic.lastSyncedAt,
-    usingCachedLibrary: appleMusic.usingCachedLibrary,
-    isSyncing: appleMusic.status === 'working',
+    status: localMusic.status,
+    message: localMusic.message,
+    tracks: localMusic.tracks,
+    musicDirectory: localMusic.musicDirectory,
+    currentTrack: localMusic.currentTrack,
+    isScanning: localMusic.status === 'working',
   }), [
-    appleMusic.status,
-    appleMusic.message,
-    appleMusic.hasUserToken,
-    appleMusic.defaultSearchTerm,
-    appleMusic.catalogResults,
-    appleMusic.libraryResults,
-    appleMusic.allMusic,
-    appleMusic.playlists,
-    appleMusic.playlistTracks,
-    appleMusic.lastSyncedAt,
-    appleMusic.usingCachedLibrary,
+    localMusic.status,
+    localMusic.message,
+    localMusic.tracks,
+    localMusic.musicDirectory,
+    currentTrackMenuKey,
   ]);
 
   const [stack, setStack] = useState<StackItem[]>([{ node: rootMenu, cursorIndex: 0 }]);
@@ -83,10 +102,28 @@ export default function App() {
   useEffect(() => {
     setStack(prev => {
       const path = prev.map(item => item.node.id);
-      return prev.map((item, index) => ({
-        node: findNodeByPath(rootMenu, path.slice(0, index + 1)),
-        cursorIndex: item.cursorIndex,
-      }));
+      const nextStack: StackItem[] = [];
+
+      for (let index = 0; index < prev.length; index += 1) {
+        const node = findNodeByPath(rootMenu, path.slice(0, index + 1));
+        if (!node) {
+          if (isDetachedNavigationNode(prev[index].node)) {
+            return [
+              ...nextStack,
+              ...prev.slice(index),
+            ];
+          }
+          break;
+        }
+
+        const maxCursorIndex = Math.max(0, (node.children?.length || 1) - 1);
+        nextStack.push({
+          node,
+          cursorIndex: Math.min(prev[index].cursorIndex, maxCursorIndex),
+        });
+      }
+
+      return nextStack.length ? nextStack : [{ node: rootMenu, cursorIndex: 0 }];
     });
   }, [rootMenu]);
 
@@ -162,6 +199,24 @@ export default function App() {
   };
 
   const handleRotate = (steps: number) => {
+    const activePlaybackQueue = playbackQueue.length ? playbackQueue : localMusic.tracks;
+    if (currentNode.type === 'nowPlaying' && steps !== 0 && activePlaybackQueue.length) {
+      const currentQueueIndex = Math.max(
+        0,
+        activePlaybackQueue.findIndex(track => track.id === localMusic.currentTrack?.id),
+      );
+      const queueNode: MenuNode = {
+        id: 'now_playing_queue',
+        title: 'Up Next',
+        type: 'menu',
+        children: activePlaybackQueue.map((track, index) => localTrackNode(track, activePlaybackQueue, index)),
+      };
+      const maxIdx = activePlaybackQueue.length - 1;
+      const nextIndex = Math.max(0, Math.min(maxIdx, currentQueueIndex + steps));
+      setStack(prev => [...prev, { node: queueNode, cursorIndex: nextIndex }]);
+      return;
+    }
+
     const canRotate = currentNode.type === 'menu' || currentNode.type === 'coverFlow';
     if (!canRotate || !currentNode.children || steps === 0) return;
 
@@ -182,26 +237,16 @@ export default function App() {
 
   const runAction = async (node: MenuNode) => {
     switch (node.action) {
-      case 'apple_music_sign_in':
-        await appleMusic.startSignIn();
-        break;
-      case 'apple_music_search_catalog':
-        await appleMusic.searchCatalog();
-        break;
-      case 'apple_music_load_library':
-        await appleMusic.loadLibrarySongs();
-        break;
-      case 'apple_music_favorite_current':
-        if (currentSong?.appleMusicSong) {
-          await appleMusic.addSongToFavorites(currentSong.appleMusicSong);
-        }
+      case 'local_music_scan':
+        await localMusic.scanLibrary();
         break;
       case 'player_shuffle_all':
         await setPlaybackMode('shuffle');
-        await playAppleMusicQueue(appleMusic.allMusic, randomStartIndex(appleMusic.allMusic.length), 'songs', 'off');
+        setPlaybackQueue(localMusic.tracks);
+        await playQueue(localMusic.tracks, randomStartIndex(localMusic.tracks.length), { shuffle: true });
         setStack(prev => [
           ...prev,
-          { node: { id: 'now_playing', title: 'Now Playing', type: 'nowPlaying' }, cursorIndex: 0 }
+          { node: nowPlayingNode, cursorIndex: 0 }
         ]);
         break;
       default:
@@ -216,6 +261,20 @@ export default function App() {
       setPlaybackMode(nextMode).catch(error => {
         console.error('Playback mode update failed', error);
       });
+      return;
+    }
+
+    if (currentNode.type === 'songDetail' && currentNode.localTrack) {
+      const queue = currentNode.localQueue?.length ? currentNode.localQueue : [currentNode.localTrack];
+      const selectedIndex = Math.max(0, currentNode.localQueueIndex ?? queue.findIndex(track => track.id === currentNode.localTrack?.id));
+      setPlaybackQueue(queue);
+      playQueue(queue, selectedIndex)
+        .then(() => {
+          setStack(prev => [...prev, { node: nowPlayingNode, cursorIndex: 0 }]);
+        })
+        .catch(error => {
+          console.error('Local playback failed', error);
+        });
       return;
     }
 
@@ -244,37 +303,34 @@ export default function App() {
     
     const selectedChild = currentNode.children[cursorIndex];
     if (selectedChild.action) {
-       runAction(selectedChild);
+       runAction(selectedChild).catch(error => {
+         console.error('Local music action failed', error);
+       });
        return;
     }
 
-    if (selectedChild.appleMusicSong) {
-       const appleMusicSongs = currentNode.children
-         .map(child => child.appleMusicSong)
-         .filter((song): song is NonNullable<typeof song> => Boolean(song));
-       const selectedIndex = Math.max(0, appleMusicSongs.findIndex(song => song.id === selectedChild.appleMusicSong?.id));
-       playAppleMusicQueue(appleMusicSongs, selectedIndex).catch(error => {
-         console.error('Apple Music playback failed', error);
-       });
-       setStack(prev => [
-         ...prev,
-         { node: { id: 'now_playing', title: 'Now Playing', type: 'nowPlaying' }, cursorIndex: 0 }
-       ]);
+    if (selectedChild.localTrack) {
+       const localTracks = localQueueFromMenu(currentNode);
+       const queue = localTracks.length ? localTracks : [selectedChild.localTrack];
+       const selectedIndex = Math.max(0, queue.findIndex(track => track.id === selectedChild.localTrack?.id));
+       setPlaybackQueue(queue);
+       playQueue(queue, selectedIndex)
+         .then(() => {
+           setStack(prev => [...prev, { node: nowPlayingNode, cursorIndex: 0 }]);
+         })
+         .catch(error => {
+           console.error('Local playback failed', error);
+         });
     } else if (selectedChild.id.startsWith('song_')) {
-       // Play the song
-       const songId = selectedChild.id.split('_')[1];
-       playSongById(songId);
-       
-       // Force a navigate to 'nowPlaying' screen
        setStack(prev => [
          ...prev,
-         { node: { id: 'now_playing', title: 'Now Playing', type: 'nowPlaying' }, cursorIndex: 0 }
+         { node: nowPlayingNode, cursorIndex: 0 }
        ]);
     } else if (selectedChild.type === 'nowPlaying') {
        // Just go to now playing view without changing song
        setStack(prev => [
          ...prev,
-         { node: { id: 'now_playing', title: 'Now Playing', type: 'nowPlaying' }, cursorIndex: 0 }
+         { node: nowPlayingNode, cursorIndex: 0 }
        ]);
     } else {
        // Push submenu or other screens (clock, games, placeholders, etc.)
@@ -291,14 +347,20 @@ export default function App() {
       setCoverFlowIsSelecting(false);
     }
 
-    // Pop stack if we are not at root
     setStack(prev => {
-      if (prev.length > 1) {
-        const newStack = [...prev];
-        newStack.pop();
-        return newStack;
+      if (prev.length <= 1) return prev;
+
+      const poppedNodeId = prev[prev.length - 1].node.id;
+      const nextStack = prev.slice(0, -1);
+
+      while (
+        nextStack.length > 1 &&
+        nextStack[nextStack.length - 1].node.id === poppedNodeId
+      ) {
+        nextStack.pop();
       }
-      return prev;
+
+      return nextStack;
     });
   };
 

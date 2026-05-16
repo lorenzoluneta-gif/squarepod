@@ -13,6 +13,9 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(AppleMusicAuthPlugin.class);
         registerPlugin(AppleMusicPlayerPlugin.class);
+        registerPlugin(DeviceStatusPlugin.class);
+        registerPlugin(LocalMusicPlugin.class);
+        registerPlugin(SpotifyRemotePlugin.class);
         super.onCreate(savedInstanceState);
         enableImmersiveFullscreen();
     }

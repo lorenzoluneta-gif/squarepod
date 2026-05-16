@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { MenuNode, PlaybackMode, Song } from '../types';
 import { motion, useReducedMotion } from 'motion/react';
 import { CachedImage } from './CachedImage';
+import { DeviceStatus } from '../native/deviceStatus';
 
 interface ScreenProps {
   currentNode: MenuNode;
@@ -42,6 +43,8 @@ export function Screen({
   onCoverFlowSettleTarget,
 }: ScreenProps) {
   const [coverFlowPosition, setCoverFlowPosition] = useState(cursorIndex);
+  const [batteryPercent, setBatteryPercent] = useState<number>();
+  const [batteryCharging, setBatteryCharging] = useState(false);
   const coverFlowPositionRef = useRef(cursorIndex);
   const coverFlowTargetRef = useRef(cursorIndex);
   const coverFlowMotionModeRef = useRef<'drag' | 'settle'>('settle');
@@ -179,6 +182,28 @@ export function Screen({
     };
   }, []);
 
+  useEffect(() => {
+    let disposed = false;
+
+    const refreshBattery = () => {
+      DeviceStatus.getBattery()
+        .then(status => {
+          if (disposed) return;
+          setBatteryPercent(status.percent);
+          setBatteryCharging(status.charging);
+        })
+        .catch(() => undefined);
+    };
+
+    refreshBattery();
+    const timer = window.setInterval(refreshBattery, 60000);
+
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
   // Format seconds to mm:ss
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -218,7 +243,7 @@ export function Screen({
 
   const renderHeader = () => (
     <div className="bg-gradient-to-b from-gray-100 to-gray-200 h-[24px] min-h-[24px] max-h-[24px] shrink-0 border-b border-gray-300 flex items-center justify-between px-6 overflow-hidden">
-      <div className="flex items-center space-x-1 w-8 h-full">
+      <div className="flex items-center space-x-1 w-16 h-full">
         {isPlaying && (
           <svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor" className="text-gray-700">
              <path d="M0 0h3v12H0zm7 0h3v12H7z" />
@@ -228,9 +253,24 @@ export function Screen({
       <div className="text-[10px] leading-none font-bold text-gray-700 uppercase tracking-tighter truncate flex-1 text-center">
         {currentNode.title}
       </div>
-      <div className="flex items-center justify-end w-12 h-full gap-1.5 text-gray-700">
+      <div className="flex items-center justify-end w-16 h-full gap-1 text-gray-700">
          {renderPlaybackModeIcon()}
-         <div className="w-4 h-2 bg-green-500 rounded-sm border border-gray-400"></div>
+         {batteryPercent !== undefined && (
+           <span className="min-w-[21px] text-right text-[9px] font-black leading-none tabular-nums text-gray-700">
+             {batteryPercent}%
+           </span>
+         )}
+         <div className="relative h-2 w-4 rounded-sm border border-gray-400 bg-white">
+           <div
+             className={`h-full rounded-[1px] ${batteryPercent !== undefined && batteryPercent <= 15 ? 'bg-red-500' : 'bg-green-500'}`}
+             style={{ width: `${batteryPercent ?? 100}%` }}
+           />
+           {batteryCharging && (
+             <div className="absolute inset-0 flex items-center justify-center text-[7px] font-black leading-none text-black/70">
+               +
+             </div>
+           )}
+         </div>
       </div>
     </div>
   );
@@ -240,6 +280,39 @@ export function Screen({
       return (
         <div className="w-1/2 h-full bg-neutral-50 flex items-center justify-center p-6">
            <CachedImage src={selectedChild.previewImage} className="w-full aspect-square object-cover shadow-lg rounded-sm" />
+        </div>
+      );
+    }
+
+    const isMusicRelated = ['music', 'now_playing_menu', 'shuffle_songs'].includes(selectedChild?.id || '');
+    
+    if (currentSong && (isMusicRelated || (!selectedChild?.previewIcon && !selectedChild?.previewImage && !selectedChild?.detailLines?.length))) {
+      const duration = Math.max(1, currentSong.duration || 1);
+      const progressPercent = Math.max(0, Math.min(100, (progress / duration) * 100));
+      const remaining = Math.max(0, duration - progress);
+
+      return (
+        <div className="w-1/2 h-full bg-neutral-50 flex flex-col items-center justify-center p-6">
+          <div className="w-full aspect-square shadow-lg relative group overflow-hidden rounded-sm bg-neutral-300">
+            <CachedImage src={currentSong.coverUrl} className="absolute inset-0 w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center text-white text-center">
+              <p className="text-[10px] font-bold uppercase tracking-widest opacity-80 mt-auto">Now Playing</p>
+              <p className="text-sm font-bold leading-tight px-2 w-full truncate">{currentSong.title}</p>
+              <p className="text-[10px] font-medium w-full truncate px-2 mb-2">{currentSong.artist}</p>
+            </div>
+          </div>
+          <div className="mt-4 w-full px-2">
+            <div className="h-1 bg-gray-300 rounded-full w-full overflow-hidden">
+              <div 
+                className="h-full bg-blue-500" 
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <div className="flex justify-between mt-1">
+              <span className="text-[8px] text-gray-400 font-bold">{formatTime(progress)}</span>
+              <span className="text-[8px] text-gray-400 font-bold">-{formatTime(remaining)}</span>
+            </div>
+          </div>
         </div>
       );
     }
@@ -273,35 +346,6 @@ export function Screen({
               />
             </div>
           )}
-        </div>
-      );
-    }
-    
-    const isMusicRelated = ['music', 'now_playing_menu', 'shuffle_songs'].includes(selectedChild?.id || '');
-    
-    if (currentSong && (isMusicRelated || (!selectedChild?.previewIcon && !selectedChild?.previewImage))) {
-      return (
-        <div className="w-1/2 h-full bg-neutral-50 flex flex-col items-center justify-center p-6">
-          <div className="w-full aspect-square shadow-lg relative group overflow-hidden rounded-sm">
-            <CachedImage src={currentSong.coverUrl} className="absolute inset-0 w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center text-white text-center">
-              <p className="text-[10px] font-bold uppercase tracking-widest opacity-80 mt-auto">Now Playing</p>
-              <p className="text-sm font-bold leading-tight px-2 w-full truncate">{currentSong.title}</p>
-              <p className="text-[10px] font-medium w-full truncate px-2 mb-2">{currentSong.artist}</p>
-            </div>
-          </div>
-          <div className="mt-4 w-full px-2">
-            <div className="h-1 bg-gray-300 rounded-full w-full overflow-hidden">
-              <div 
-                className="h-full bg-blue-500" 
-                style={{ width: `${(progress / currentSong.duration) * 100}%` }}
-              />
-            </div>
-            <div className="flex justify-between mt-1">
-              <span className="text-[8px] text-gray-400 font-bold">{formatTime(progress)}</span>
-              <span className="text-[8px] text-gray-400 font-bold">-{formatTime(currentSong.duration - progress)}</span>
-            </div>
-          </div>
         </div>
       );
     }
@@ -364,6 +408,43 @@ export function Screen({
     );
   };
 
+  const renderSongDetail = () => {
+    const track = currentNode.localTrack;
+    if (!track) {
+      return <div className="flex-1 flex items-center justify-center text-xs font-bold font-sans">No Song Selected</div>;
+    }
+
+    return (
+      <div className="flex-1 flex w-full h-full bg-neutral-50">
+        <div className="w-1/2 p-6 flex flex-col items-center justify-center border-r border-gray-200">
+          <div className="w-full aspect-square overflow-hidden rounded-sm bg-neutral-300 shadow-lg">
+            {track.artworkUri ? (
+              <CachedImage src={track.artworkUri} className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-neutral-300 to-neutral-600 px-3 text-center text-sm font-black uppercase leading-tight text-white/90">
+                {track.album || track.title}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="w-1/2 flex flex-col justify-center px-6 font-sans overflow-hidden">
+          <div className="text-[10px] font-black uppercase leading-none text-blue-600">Song</div>
+          <div className="mt-2 text-lg font-black leading-tight text-gray-950 line-clamp-2">{track.title || 'Unknown Title'}</div>
+          <div className="mt-2 text-sm font-bold leading-tight text-gray-700 line-clamp-2">{track.artist || 'Unknown Artist'}</div>
+          <div className="mt-1 text-xs font-semibold leading-tight text-gray-500 line-clamp-2">{track.album || 'Unknown Album'}</div>
+          <div className="mt-5 flex items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm">
+              <svg width="11" height="12" viewBox="0 0 10 12" fill="currentColor" aria-hidden="true">
+                <path d="M0 0l10 6-10 6z" />
+              </svg>
+            </div>
+            <div className="text-[11px] font-black uppercase leading-none text-gray-700">Select to Play</div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderCoverArtwork = (album: MenuNode, isCenter: boolean) => {
     const title = album.title || 'Unknown Album';
 
@@ -395,7 +476,7 @@ export function Screen({
         <div className="flex-1 bg-gradient-to-b from-neutral-100 to-neutral-200 flex flex-col items-center justify-center px-8 text-center">
           <div className="h-24 w-24 rounded-sm border border-neutral-300 bg-gradient-to-br from-neutral-200 to-neutral-400 shadow-inner" />
           <div className="mt-5 text-sm font-black leading-tight text-neutral-800">No Albums</div>
-          <div className="mt-1 text-[11px] font-bold leading-tight text-neutral-500">Sync Apple Music first.</div>
+          <div className="mt-1 text-[11px] font-bold leading-tight text-neutral-500">Scan local music first.</div>
         </div>
       );
     }
@@ -695,7 +776,7 @@ export function Screen({
      );
   };
 
-  const renderAppleMusicStatus = () => {
+  const renderServiceStatus = () => {
     const toneClass = currentNode.statusTone === 'success'
       ? 'text-green-600'
       : currentNode.statusTone === 'error'
@@ -708,7 +789,7 @@ export function Screen({
       <div className="flex-1 bg-white flex flex-col p-5 overflow-hidden">
         <div className={`text-sm font-bold leading-tight ${toneClass}`}>{currentNode.title}</div>
         <div className="mt-3 space-y-2">
-          {(currentNode.detailLines || ['No Apple Music details available.']).map((line, index) => (
+          {(currentNode.detailLines || ['No service details available.']).map((line, index) => (
             <div key={`${line}-${index}`} className="text-[11px] leading-tight font-semibold text-gray-700">
               {line}
             </div>
@@ -738,11 +819,15 @@ export function Screen({
     switch (currentNode.type) {
       case 'coverFlow': return renderCoverFlow();
       case 'nowPlaying': return renderNowPlayingFull();
+      case 'songDetail': return renderSongDetail();
       case 'clock': return renderClock();
       case 'game_brick': return renderGameBrick();
       case 'calendar': return renderCalendar();
       case 'stopwatch': return renderStopwatch();
-      case 'appleMusicStatus': return renderAppleMusicStatus();
+      case 'appleMusicStatus':
+      case 'spotifyStatus':
+      case 'localMusicStatus':
+        return renderServiceStatus();
       case 'about': return renderAbout();
       case 'photos': return renderPhotos();
       case 'podcasts': return renderPodcasts();

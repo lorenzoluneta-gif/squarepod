@@ -13,6 +13,8 @@ export interface RotateEndMeta {
 }
 
 const ROTATE_IDLE_RELEASE_MS = 120;
+const TAP_MAX_DISTANCE_PX = 12;
+const TAP_MAX_DURATION_MS = 650;
 
 export function useWheel({
   onRotate,
@@ -85,6 +87,8 @@ export function useWheel({
     startTime.current = Date.now();
     lastMoveTime.current = performance.now();
     recentVelocity.current = 0;
+    accumulatedAngle.current = 0;
+    lastStepAngle.current = 0;
 
     prevAngle.current = getAngle(e.clientX, e.clientY);
     
@@ -98,7 +102,7 @@ export function useWheel({
 
     const dx = e.clientX - startX.current;
     const dy = e.clientY - startY.current;
-    if (dx * dx + dy * dy > 25) { 
+    if (dx * dx + dy * dy > TAP_MAX_DISTANCE_PX * TAP_MAX_DISTANCE_PX) { 
       hasMoved.current = true;
     }
 
@@ -142,7 +146,7 @@ export function useWheel({
   const handlePointerUp = (e: React.PointerEvent) => {
     clearIdleTimer();
 
-    if (isDragging.current && !hasMoved.current && Date.now() - startTime.current < 500) {
+    if (isDragging.current && !hasMoved.current && Date.now() - startTime.current < TAP_MAX_DURATION_MS) {
       const angle = getAngle(e.clientX, e.clientY);
       if (angle !== null && onClickZone) {
         onClickZone(angle);
