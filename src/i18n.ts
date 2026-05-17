@@ -13,7 +13,9 @@ export const LOCALE_OPTIONS: { code: Locale; label: string; nativeLabel: string 
   { code: 'pt-BR', label: 'Portuguese (Brazil)', nativeLabel: 'Português (Brasil)' },
 ];
 
-type MessageKey =
+type MessageKey = string;
+
+type BuiltInMessageKey =
   | 'about'
   | 'actions'
   | 'allDay'
@@ -141,7 +143,7 @@ type MessageKey =
   | 'visibilityControl'
   | 'playPauseToggles';
 
-type Messages = Record<MessageKey, string>;
+type Messages = Record<BuiltInMessageKey, string> & Record<string, string>;
 
 const messages: Record<Locale, Messages> = {
   en: {
@@ -1181,5 +1183,15 @@ export const localeLabel = (locale: Locale) => (
 export const t = (locale: Locale | string | undefined, key: MessageKey, values: Record<string, string | number> = {}) => {
   const normalized = normalizeLocale(locale);
   const template = messages[normalized][key] || messages.en[key] || key;
+  return template.replace(/\{(\w+)\}/g, (_, name: string) => String(values[name] ?? ''));
+};
+
+export const text = (
+  locale: Locale | string | undefined,
+  translations: Partial<Record<Locale, string>> & { en: string },
+  values: Record<string, string | number> = {},
+) => {
+  const normalized = normalizeLocale(locale);
+  const template = translations[normalized] || translations.en;
   return template.replace(/\{(\w+)\}/g, (_, name: string) => String(values[name] ?? ''));
 };

@@ -13,6 +13,7 @@ export interface LocalMusicTrack {
   title: string;
   artist: string;
   album: string;
+  genre?: string;
   duration: number;
   trackNumber: number;
   artworkUri?: string;

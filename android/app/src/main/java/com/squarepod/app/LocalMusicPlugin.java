@@ -309,6 +309,7 @@ public class LocalMusicPlugin extends Plugin {
                     safeTitle(cursor.getString(titleIndex), uriString),
                     safeArtist(cursor.getString(artistIndex)),
                     safeAlbum(cursor.getString(albumIndex)),
+                    readGenre(path),
                     Math.max(1, Math.round(cursor.getLong(durationIndex) / 1000f)),
                     Math.max(0, cursor.getInt(trackIndex) % 1000),
                     artworkUri,
@@ -368,6 +369,7 @@ public class LocalMusicPlugin extends Plugin {
             String title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE);
             String artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST);
             String album = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM);
+            String genre = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE);
             String duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
             String trackNumber = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER);
             String trackId = "file_" + Math.abs(uriString.hashCode());
@@ -377,6 +379,7 @@ public class LocalMusicPlugin extends Plugin {
                 safeTitle(title, file.getName()),
                 safeArtist(artist),
                 safeAlbum(album),
+                safeGenre(genre),
                 parseDuration(duration),
                 parseTrackNumber(trackNumber),
                 writeArtwork(retriever.getEmbeddedPicture(), trackId),
@@ -389,11 +392,27 @@ public class LocalMusicPlugin extends Plugin {
                 safeTitle(null, file.getName()),
                 "Unknown Artist",
                 "Unknown Album",
+                "Unknown Genre",
                 1,
                 0,
                 null,
                 readSidecarLyrics(file)
             );
+        } finally {
+            try {
+                retriever.release();
+            } catch (IOException ignored) {}
+        }
+    }
+
+    private String readGenre(String path) {
+        if (TextUtils.isEmpty(path)) return "Unknown Genre";
+        MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+        try {
+            retriever.setDataSource(path);
+            return safeGenre(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE));
+        } catch (Throwable ignored) {
+            return "Unknown Genre";
         } finally {
             try {
                 retriever.release();
@@ -953,6 +972,10 @@ public class LocalMusicPlugin extends Plugin {
         return TextUtils.isEmpty(value) || "<unknown>".equals(value) ? "Unknown Album" : value;
     }
 
+    private static String safeGenre(String value) {
+        return TextUtils.isEmpty(value) || "<unknown>".equals(value) ? "Unknown Genre" : value;
+    }
+
     private static String rootMessage(Throwable error) {
         Throwable root = error;
         while (root != null && root.getCause() != null) {
@@ -977,17 +1000,19 @@ public class LocalMusicPlugin extends Plugin {
         final String title;
         final String artist;
         final String album;
+        final String genre;
         final int duration;
         final int trackNumber;
         final String artworkUri;
         final List<LyricLine> lyrics;
 
-        LocalTrack(String id, String uri, String title, String artist, String album, int duration, int trackNumber, String artworkUri, List<LyricLine> lyrics) {
+        LocalTrack(String id, String uri, String title, String artist, String album, String genre, int duration, int trackNumber, String artworkUri, List<LyricLine> lyrics) {
             this.id = id;
             this.uri = uri;
             this.title = title;
             this.artist = artist;
             this.album = album;
+            this.genre = genre;
             this.duration = duration;
             this.trackNumber = trackNumber;
             this.artworkUri = artworkUri;
@@ -1001,6 +1026,7 @@ public class LocalMusicPlugin extends Plugin {
             object.put("title", title);
             object.put("artist", artist);
             object.put("album", album);
+            object.put("genre", genre);
             object.put("duration", duration);
             object.put("trackNumber", trackNumber);
             if (artworkUri != null) object.put("artworkUri", artworkUri);
@@ -1024,6 +1050,7 @@ public class LocalMusicPlugin extends Plugin {
                 object.getString("title", "Unknown Track"),
                 object.getString("artist", "Unknown Artist"),
                 object.getString("album", "Unknown Album"),
+                object.getString("genre", "Unknown Genre"),
                 object.getInteger("duration", 1),
                 object.getInteger("trackNumber", 0),
                 object.getString("artworkUri"),

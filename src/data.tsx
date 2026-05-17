@@ -1,12 +1,36 @@
-import { Song, MenuNode, PlaybackMode, SleepTimerEndAction } from './types';
+import { DeviceMode, Song, MenuNode, PlaybackMode, SleepTimerEndAction } from './types';
 import React from 'react';
-import { PlayCircle, Film, Image as ImageIcon, Radio as RadioIcon, Settings, Shuffle, Clock, FileText, Calendar, Info, Volume2, RefreshCw, RotateCcw } from 'lucide-react';
+import { Activity, BookOpen, Mic, PlayCircle, Film, Image as ImageIcon, Radio as RadioIcon, Settings, Shuffle, Clock, FileText, Calendar, Info, Volume2, RefreshCw, RotateCcw } from 'lucide-react';
 import { LocalMusicTrack } from './native/localMusic';
 import { MediaLibraryItem } from './native/mediaLibrary';
+import { VoiceMemoItem } from './native/voiceMemos';
 import { RadioStation, RadioStatus } from './native/radio';
 import { AppleMusicPlaylist, AppleMusicSong } from './services/appleMusic';
 import { SpotifyPlaylist, SpotifyPlaylistTrack, SpotifyShortcut, SpotifyTrack } from './services/spotify';
-import { LOCALE_OPTIONS, Locale, localeLabel, normalizeLocale, t } from './i18n';
+import { LOCALE_OPTIONS, Locale, localeLabel, normalizeLocale, t, text } from './i18n';
+import { buildAlphaIndexedList } from './alphaIndex';
+import whiteKnightBody from './ebooks/the-trail-of-the-white-knight.txt?raw';
+
+const tx = (
+  locale: Locale | string | undefined,
+  en: string,
+  zhCN: string,
+  values: Record<string, string | number> = {},
+) => text(locale, { en, 'zh-CN': zhCN }, values);
+
+const countText = (
+  locale: Locale,
+  count: number,
+  singular: string,
+  plural: string,
+  zhUnit: string,
+) => locale === 'zh-CN'
+  ? `${count} ${zhUnit}`
+  : `${count} ${count === 1 ? singular : plural}`;
+
+const unknownArtist = (locale: Locale) => tx(locale, 'Unknown Artist', '未知艺人');
+const unknownAlbum = (locale: Locale) => tx(locale, 'Unknown Album', '未知专辑');
+const unknownAuthor = (locale: Locale) => tx(locale, 'Unknown Author', '未知作者');
 
 export const DUMMY_SONGS: Song[] = [
   {
@@ -106,6 +130,15 @@ export interface LocalMusicMenuState {
   radioPresets?: RadioStation[];
   radioMessage?: string;
   isRadioWorking?: boolean;
+  voiceMemos?: VoiceMemoItem[];
+  voiceMemoStatus?: string;
+  voiceMemoMessage?: string;
+  isVoiceMemoRecording?: boolean;
+  ebooks?: EbookEntry[];
+  ebookImportStatus?: string;
+  ebookImportMessage?: string;
+  isEbookImporting?: boolean;
+  workouts?: WorkoutEntry[];
   contacts?: ContactEntry[];
   notes?: NoteEntry[];
   noteDraft?: NoteEntry;
@@ -117,10 +150,10 @@ export interface LocalMusicMenuState {
   mainMenuSettingsOrder?: string[];
   mainMenuReorderKey?: string;
   backlightTimer?: string;
-  audiobooksEnabled?: boolean;
   eqPreset?: string;
   compilationsEnabled?: boolean;
   language?: Locale;
+  deviceMode?: DeviceMode;
 }
 
 export interface ContactEntry {
@@ -150,6 +183,61 @@ export interface CalendarEventEntry {
   updatedAt: number;
 }
 
+export interface EbookEntry {
+  id: string;
+  title: string;
+  author?: string;
+  body: string;
+  progress?: number;
+  currentChapterIndex?: number;
+  updatedAt: number;
+}
+
+export interface WorkoutEntry {
+  id: string;
+  title: string;
+  date: string;
+  notes?: string;
+  updatedAt: number;
+}
+
+export const DEFAULT_EBOOKS: EbookEntry[] = [
+  {
+    id: 'gutenberg_78700_white_knight',
+    title: 'The trail of the White Knight by Bruce Graeme',
+    author: 'Bruce Graeme',
+    updatedAt: 1778976000000,
+    body: whiteKnightBody,
+  },
+  {
+    id: 'demo_book_alice_wonderland',
+    title: 'Alice in Wonderland',
+    author: 'Lewis Carroll',
+    updatedAt: 1711929600000,
+    body: [
+      '# Down the rabbit-hole',
+      '',
+      'Alice was beginning to get very tired of sitting by her sister on the bank, and of having nothing to do.',
+      '',
+      'Once or twice she had peeped into the book her sister was reading, but it had no pictures or conversations in it. "What is the use of a book," thought Alice, "without pictures or conversations?"',
+      '',
+      'So she was considering in her own mind whether the pleasure of making a daisy-chain would be worth the trouble of getting up and picking the daisies, when suddenly a White Rabbit with pink eyes ran close by her.',
+      '',
+      'There was nothing so very remarkable in that; nor did Alice think it so very much out of the way to hear the Rabbit say to itself, "Oh dear! Oh dear! I shall be late!"',
+      '',
+      '# The hall of doors',
+      '',
+      'Alice found herself in a long, low hall, which was lit up by a row of lamps hanging from the roof.',
+      '',
+      'There were doors all round the hall, but they were all locked. Alice walked sadly down the middle, wondering how she was ever to get out again.',
+      '',
+      '# Reading note',
+      '',
+      'This public-domain excerpt is bundled as a SquarePod demo book so every fresh install has real reading content under Books.',
+    ].join('\n'),
+  },
+];
+
 export interface SleepTimerMenuState {
   status: 'off' | 'running' | 'completed';
   startedAt?: number;
@@ -162,6 +250,9 @@ export const MAIN_MENU_ITEM_ORDER = [
   'videos',
   'photos',
   'radio',
+  'fitness',
+  'voice_memos',
+  'ebooks',
   'notes',
   'ex_clock',
   'ex_contacts',
@@ -178,6 +269,9 @@ const DEFAULT_MAIN_MENU_ENABLED: Record<MainMenuItemKey, boolean> = {
   videos: true,
   photos: true,
   radio: true,
+  fitness: true,
+  voice_memos: true,
+  ebooks: true,
   notes: true,
   ex_clock: false,
   ex_contacts: false,
@@ -259,9 +353,9 @@ const localTrackToMenuNode = (track: LocalMusicTrack, locale: Locale = 'en'): Me
   previewImage: track.artworkUri,
   localTrack: track,
   detailLines: [
-    track.artist || 'Unknown Artist',
-    track.album || 'Unknown Album',
-    'Local audio file',
+    track.artist || unknownArtist(locale),
+    track.album || unknownAlbum(locale),
+    tx(locale, 'Local audio file', '本地音频文件'),
   ],
 });
 
@@ -296,13 +390,13 @@ const generateLocalCoverFlowNode = (tracks: LocalMusicTrack[], locale: Locale): 
 
       return {
         id: stableNodeId('cover_album', key || String(index)),
-        title: firstTrack.album || 'Unknown Album',
+        title: firstTrack.album || unknownAlbum(locale),
         type: 'menu',
         previewImage: artworkTrack.artworkUri,
         localAlbumKey: key,
         detailLines: [
-          firstTrack.artist || 'Unknown Artist',
-          `${albumTracks.length} song${albumTracks.length === 1 ? '' : 's'}`,
+          firstTrack.artist || unknownArtist(locale),
+          countText(locale, albumTracks.length, 'song', 'songs', '首歌曲'),
         ],
         children: albumTracks.map(track => localTrackToMenuNode(track, locale)),
       };
@@ -313,7 +407,7 @@ const generateLocalCoverFlowNode = (tracks: LocalMusicTrack[], locale: Locale): 
     title: t(locale, 'coverFlow'),
     type: 'coverFlow',
     detailLines: albums.length
-      ? [`${albums.length} albums`, 'Browse local albums.']
+      ? [countText(locale, albums.length, 'album', 'albums', '张专辑'), tx(locale, 'Browse local albums.', '浏览本地专辑。')]
       : [t(locale, 'scanLocalMusicFirst')],
     children: albums,
   };
@@ -342,7 +436,7 @@ const groupLocalTracks = (
       title: getTitle(groupTracks[0]),
       type: 'menu',
       previewImage: groupTracks.find(track => Boolean(track.artworkUri))?.artworkUri,
-      detailLines: [`${groupTracks.length} song${groupTracks.length === 1 ? '' : 's'}`],
+      detailLines: [countText(locale, groupTracks.length, 'song', 'songs', '首歌曲')],
       children: groupTracks.map(track => localTrackToMenuNode(track, locale)),
     }));
 };
@@ -350,6 +444,27 @@ const groupLocalTracks = (
 const generateLocalMusicChildren = (state: LocalMusicMenuState = {}): MenuNode[] => {
   const locale = normalizeLocale(state.language);
   const tracks = sortLocalTracks(state.tracks || []);
+  const alphaSongs = buildAlphaIndexedList(tracks, track => track.title || t(locale, 'title'));
+  const artistNodes = tracks.length
+    ? groupLocalTracks(
+        tracks,
+        'local_artist',
+        track => track.artist || unknownArtist(locale),
+        track => track.artist || unknownArtist(locale),
+        locale,
+      )
+    : [];
+  const alphaArtists = buildAlphaIndexedList(artistNodes, node => node.title);
+  const albumNodes = tracks.length
+    ? groupLocalTracks(
+        tracks,
+        'local_album',
+        track => normalizeLocalAlbumKey(track),
+        track => track.album || unknownAlbum(locale),
+        locale,
+      )
+    : [];
+  const alphaAlbums = buildAlphaIndexedList(albumNodes, node => node.title);
   const statusTone = state.status === 'success' || state.status === 'ready'
     ? 'success'
     : state.status === 'error' || state.status === 'needsPermission' ? 'error' : 'warning';
@@ -370,11 +485,11 @@ const generateLocalMusicChildren = (state: LocalMusicMenuState = {}): MenuNode[]
       title: t(locale, 'allSongs'),
       type: 'menu',
       detailLines: [
-        `${tracks.length} local songs`,
-        'Songs found on this Android device.',
+        countText(locale, tracks.length, 'local song', 'local songs', '首本地歌曲'),
+        tx(locale, 'Songs found on this Android device.', '此 Android 设备上的歌曲。'),
       ],
       children: tracks.length
-        ? tracks.map(track => localTrackToMenuNode(track, locale))
+        ? alphaSongs.items.map(track => localTrackToMenuNode(track, locale))
         : [{
             id: 'local_no_all_songs',
             title: t(locale, 'noSongs'),
@@ -382,19 +497,14 @@ const generateLocalMusicChildren = (state: LocalMusicMenuState = {}): MenuNode[]
             statusTone: 'warning',
             detailLines: [t(locale, 'scanFirst')],
           }],
+      alphaSections: tracks.length ? alphaSongs.sections : undefined,
     },
     {
       id: 'local_artists',
       title: t(locale, 'artists'),
       type: 'menu',
       children: tracks.length
-        ? groupLocalTracks(
-            tracks,
-            'local_artist',
-            track => track.artist || 'Unknown Artist',
-            track => track.artist || 'Unknown Artist',
-            locale,
-          )
+        ? alphaArtists.items
         : [{
             id: 'local_no_artists',
             title: t(locale, 'noArtists'),
@@ -402,19 +512,14 @@ const generateLocalMusicChildren = (state: LocalMusicMenuState = {}): MenuNode[]
             statusTone: 'warning',
             detailLines: [t(locale, 'scanFirst')],
           }],
+      alphaSections: tracks.length ? alphaArtists.sections : undefined,
     },
     {
       id: 'local_albums',
       title: t(locale, 'albums'),
       type: 'menu',
       children: tracks.length
-        ? groupLocalTracks(
-            tracks,
-            'local_album',
-            track => normalizeLocalAlbumKey(track),
-            track => track.album || 'Unknown Album',
-            locale,
-          )
+        ? alphaAlbums.items
         : [{
             id: 'local_no_albums',
             title: t(locale, 'noAlbums'),
@@ -422,6 +527,7 @@ const generateLocalMusicChildren = (state: LocalMusicMenuState = {}): MenuNode[]
             statusTone: 'warning',
             detailLines: [t(locale, 'scanFirst')],
           }],
+      alphaSections: tracks.length ? alphaAlbums.sections : undefined,
     },
     {
       id: 'local_scan',
@@ -431,9 +537,9 @@ const generateLocalMusicChildren = (state: LocalMusicMenuState = {}): MenuNode[]
       isLoading: state.isScanning,
       statusTone,
       detailLines: [
-        state.message || 'Scan local audio files.',
-        `${tracks.length} songs cached`,
-        state.musicDirectory ? `App folder: ${state.musicDirectory}` : 'Reads Android audio library and app Music folder.',
+        state.message || tx(locale, 'Scan local audio files.', '扫描本地音频文件。'),
+        countText(locale, tracks.length, 'song cached', 'songs cached', '首歌曲已缓存'),
+        state.musicDirectory ? tx(locale, 'App folder: {path}', '应用文件夹：{path}', { path: state.musicDirectory }) : tx(locale, 'Reads Android audio library and app Music folder.', '读取 Android 音频库和应用 Music 文件夹。'),
       ],
     },
   ];
@@ -866,15 +972,15 @@ export const generateMusicMenu = (local: LocalMusicMenuState = {}): MenuNode => 
   };
 };
 
-const mediaItemToNode = (item: MediaLibraryItem): MenuNode => ({
+const mediaItemToNode = (item: MediaLibraryItem, locale: Locale): MenuNode => ({
   id: item.id,
-  title: item.title || (item.kind === 'photo' ? 'Photo' : 'Video'),
+  title: item.title || (item.kind === 'photo' ? t(locale, 'photos') : t(locale, 'videos')),
   type: item.kind === 'photo' ? 'photoDetail' : 'videoDetail',
   previewImage: item.thumbnailUri || item.uri,
   mediaItem: item,
   detailLines: [
     item.bucket || 'Android MediaStore',
-    item.kind === 'video' && item.duration ? `${Math.round(item.duration / 1000)} sec` : `${item.width || 0} x ${item.height || 0}`,
+    item.kind === 'video' && item.duration ? tx(locale, '{count} sec', '{count} 秒', { count: Math.round(item.duration / 1000) }) : `${item.width || 0} x ${item.height || 0}`,
     item.mimeType || item.uri,
   ],
 });
@@ -891,7 +997,7 @@ const generateVideosMenu = (local: LocalMusicMenuState = {}): MenuNode => {
     title: t(locale, 'videos'),
     type: 'menu',
     previewIcon: <Film className="w-16 h-16 text-purple-500" />,
-    detailLines: [`${videos.length} local videos`, local.mediaMessage || 'Reads Android MediaStore videos.'],
+    detailLines: [countText(locale, videos.length, 'local video', 'local videos', '个本地视频'), local.mediaMessage || tx(locale, 'Reads Android MediaStore videos.', '读取 Android MediaStore 视频。')],
     children: [
       {
         id: 'v_all',
@@ -899,17 +1005,17 @@ const generateVideosMenu = (local: LocalMusicMenuState = {}): MenuNode => {
         type: 'menu',
         previewImage: videos[0]?.thumbnailUri,
         detailLines: [
-          `${videos.length} videos`,
-          videos[0]?.title ? `Latest: ${videos[0].title}` : local.mediaMessage || 'Open the local video library.',
+          countText(locale, videos.length, 'video', 'videos', '个视频'),
+          videos[0]?.title ? tx(locale, 'Latest: {name}', '最新：{name}', { name: videos[0].title }) : local.mediaMessage || tx(locale, 'Open the local video library.', '打开本地视频库。'),
         ],
         children: videos.length
-          ? videos.map(mediaItemToNode)
+          ? videos.map(item => mediaItemToNode(item, locale))
           : [{
               id: 'v_no_videos',
               title: t(locale, 'noVideos'),
               type: 'localMusicStatus',
               statusTone: tone,
-              detailLines: [local.mediaMessage || 'No local videos found.'],
+              detailLines: [local.mediaMessage || tx(locale, 'No local videos found.', '未找到本地视频。')],
             }],
       },
       {
@@ -920,8 +1026,8 @@ const generateVideosMenu = (local: LocalMusicMenuState = {}): MenuNode => {
         isLoading: local.isMediaScanning,
         statusTone: tone,
         detailLines: [
-          local.mediaMessage || 'Refresh Android image/video library.',
-          `${videos.length} videos cached`,
+          local.mediaMessage || tx(locale, 'Refresh Android image/video library.', '刷新 Android 图片/视频库。'),
+          countText(locale, videos.length, 'video cached', 'videos cached', '个视频已缓存'),
         ],
       },
     ],
@@ -940,7 +1046,7 @@ const generatePhotosMenu = (local: LocalMusicMenuState = {}): MenuNode => {
     title: t(locale, 'photos'),
     type: 'menu',
     previewIcon: <ImageIcon className="w-16 h-16 text-orange-500" />,
-    detailLines: [`${photos.length} local photos`, local.mediaMessage || 'Reads Android MediaStore images.'],
+    detailLines: [countText(locale, photos.length, 'local photo', 'local photos', '张本地照片'), local.mediaMessage || tx(locale, 'Reads Android MediaStore images.', '读取 Android MediaStore 图片。')],
     children: [
       {
         id: 'p_library',
@@ -948,17 +1054,17 @@ const generatePhotosMenu = (local: LocalMusicMenuState = {}): MenuNode => {
         type: 'photoGrid',
         previewImage: photos[0]?.thumbnailUri || photos[0]?.uri,
         detailLines: [
-          `${photos.length} photos`,
-          photos[0]?.bucket ? `Latest album: ${photos[0].bucket}` : local.mediaMessage || 'Open the local photo grid.',
+          countText(locale, photos.length, 'photo', 'photos', '张照片'),
+          photos[0]?.bucket ? tx(locale, 'Latest album: {name}', '最新相册：{name}', { name: photos[0].bucket }) : local.mediaMessage || tx(locale, 'Open the local photo grid.', '打开本地照片网格。'),
         ],
         children: photos.length
-          ? photos.map(mediaItemToNode)
+          ? photos.map(item => mediaItemToNode(item, locale))
           : [{
               id: 'p_no_photos',
               title: t(locale, 'noPhotos'),
               type: 'localMusicStatus',
               statusTone: tone,
-              detailLines: [local.mediaMessage || 'No local photos found.'],
+              detailLines: [local.mediaMessage || tx(locale, 'No local photos found.', '未找到本地照片。')],
             }],
       },
       {
@@ -969,10 +1075,388 @@ const generatePhotosMenu = (local: LocalMusicMenuState = {}): MenuNode => {
         isLoading: local.isMediaScanning,
         statusTone: tone,
         detailLines: [
-          local.mediaMessage || 'Refresh Android image/video library.',
-          `${photos.length} photos cached`,
+          local.mediaMessage || tx(locale, 'Refresh Android image/video library.', '刷新 Android 图片/视频库。'),
+          countText(locale, photos.length, 'photo cached', 'photos cached', '张照片已缓存'),
         ],
       },
+    ],
+  };
+};
+
+const formatDurationMs = (duration = 0) => {
+  const totalSeconds = Math.max(0, Math.round(duration / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+};
+
+const voiceMemoToNode = (memo: VoiceMemoItem, locale: Locale): MenuNode => ({
+  id: `voice_memo_${memo.id}`,
+  title: memo.title,
+  type: 'menu',
+  voiceMemoId: memo.id,
+  detailLines: [
+    formatDurationMs(memo.duration),
+    new Date(memo.createdAt).toLocaleString(),
+    memo.uri,
+  ],
+  children: [
+    {
+      id: `voice_memo_play_${memo.id}`,
+      title: tx(locale, 'Play', '播放'),
+      type: 'localMusicStatus',
+      action: 'voice_memos_play',
+      voiceMemoId: memo.id,
+      statusTone: 'neutral',
+      detailLines: [memo.title, formatDurationMs(memo.duration)],
+    },
+    {
+      id: `voice_memo_delete_${memo.id}`,
+      title: t(locale, 'delete'),
+      type: 'localMusicStatus',
+      action: 'voice_memos_delete',
+      voiceMemoId: memo.id,
+      statusTone: 'warning',
+      detailLines: [memo.title],
+    },
+  ],
+});
+
+const generateVoiceMemosMenu = (local: LocalMusicMenuState = {}): MenuNode => {
+  const locale = normalizeLocale(local.language);
+  const memos = local.voiceMemos || [];
+  const recording = Boolean(local.isVoiceMemoRecording);
+  const latestMemo = [...memos].sort((left, right) => right.createdAt - left.createdAt)[0];
+  return {
+    id: 'voice_memos',
+    title: tx(locale, 'Voice Memos', '语音备忘录'),
+    type: 'menu',
+    previewIcon: <Mic className="w-16 h-16 text-red-500" />,
+    detailLines: [local.voiceMemoMessage || countText(locale, memos.length, 'voice memo', 'voice memos', '条语音备忘录'), recording ? tx(locale, 'Recording', '录音中') : tx(locale, 'Ready', '就绪')],
+    children: [
+      {
+        id: 'voice_memos_record',
+        title: recording ? tx(locale, 'Stop', '停止') : tx(locale, 'Record', '录音'),
+        type: 'localMusicStatus',
+        action: 'voice_memos_toggle_record',
+        statusTone: recording ? 'error' : 'neutral',
+        detailLines: [recording ? tx(locale, 'Recording now. Tap to stop and save.', '正在录音。再次轻点停止并保存。') : tx(locale, 'Tap once to record. Tap again to save.', '轻点开始录音，再次轻点保存。')],
+      },
+      latestMemo ? {
+        id: 'voice_memos_latest',
+        title: tx(locale, 'Latest Recording', '最新录音'),
+        type: 'menu' as const,
+        detailLines: [latestMemo.title, formatDurationMs(latestMemo.duration)],
+        children: voiceMemoToNode(latestMemo, locale).children,
+      } : {
+        id: 'voice_memos_latest_empty',
+        title: tx(locale, 'Latest Recording', '最新录音'),
+        type: 'localMusicStatus' as const,
+        statusTone: 'warning' as const,
+        detailLines: [tx(locale, 'No saved recordings yet.', '还没有保存的录音。')],
+      },
+      {
+        id: 'voice_memos_list',
+        title: tx(locale, 'All Recordings', '全部录音'),
+        type: 'menu',
+        detailLines: [countText(locale, memos.length, 'memo', 'memos', '条录音')],
+        children: memos.length
+          ? [...memos].sort((left, right) => right.createdAt - left.createdAt).map(memo => voiceMemoToNode(memo, locale))
+          : [{
+              id: 'voice_memos_empty',
+              title: tx(locale, 'No Voice Memos', '无语音备忘录'),
+              type: 'localMusicStatus',
+              statusTone: local.voiceMemoStatus === 'error' ? 'error' : 'warning',
+              detailLines: [local.voiceMemoMessage || tx(locale, 'Record a memo first.', '请先录制一条备忘录。')],
+            }],
+      },
+      {
+        id: 'voice_memos_refresh',
+        title: tx(locale, 'Sync Files', '同步文件'),
+        type: 'localMusicStatus',
+        action: 'voice_memos_refresh',
+        statusTone: 'neutral',
+        detailLines: [local.voiceMemoMessage || tx(locale, 'Reload voice memo files.', '重新载入语音备忘录文件。')],
+      },
+    ],
+  };
+};
+
+interface EbookChapter {
+  title: string;
+  body: string;
+  startRatio: number;
+}
+
+const splitEbookChapters = (body: string, locale: Locale): EbookChapter[] => {
+  const lines = body.split(/\r?\n/);
+  const chapters: Array<{ title: string; lines: string[]; startLine: number }> = [];
+  let current: { title: string; lines: string[]; startLine: number } | undefined;
+
+  lines.forEach((line, index) => {
+    const heading = line.match(/^\s{0,3}#{1,3}\s+(.+?)\s*$/);
+    if (heading) {
+      if (current) chapters.push(current);
+      current = { title: heading[1], lines: [], startLine: index };
+      return;
+    }
+    if (!current) current = { title: tx(locale, 'Start', '开始'), lines: [], startLine: 0 };
+    current.lines.push(line);
+  });
+
+  if (current) chapters.push(current);
+
+  if (chapters.length <= 1) {
+    const paragraphs = body.split(/\n\s*\n/).map(part => part.trim()).filter(Boolean);
+    if (paragraphs.length <= 3) {
+      return [{
+        title: tx(locale, 'Start', '开始'),
+        body,
+        startRatio: 0,
+      }];
+    }
+    const chunkSize = Math.ceil(paragraphs.length / Math.min(6, Math.ceil(paragraphs.length / 3)));
+    return Array.from({ length: Math.ceil(paragraphs.length / chunkSize) }, (_, index) => {
+      const start = index * chunkSize;
+      return {
+        title: tx(locale, 'Part {count}', '第 {count} 部分', { count: index + 1 }),
+        body: paragraphs.slice(start, start + chunkSize).join('\n\n'),
+        startRatio: start / Math.max(1, paragraphs.length),
+      };
+    });
+  }
+
+  return chapters.map(chapter => ({
+    title: chapter.title,
+    body: chapter.lines.join('\n').trim(),
+    startRatio: chapter.startLine / Math.max(1, lines.length),
+  }));
+};
+
+const ebookReaderNode = (ebook: EbookEntry, title: string, locale: Locale, chapterIndex?: number): MenuNode => ({
+  id: `ebook_read_${ebook.id}_${chapterIndex ?? 'continue'}`,
+  title,
+  type: 'ebookReader',
+  ebookId: ebook.id,
+  ebookAuthor: ebook.author,
+  ebookBody: ebook.body,
+  ebookChapterIndex: chapterIndex,
+  ebookProgress: ebook.progress,
+  detailLines: [ebook.author || unknownAuthor(locale)],
+});
+
+const ebookToNode = (ebook: EbookEntry, locale: Locale): MenuNode => {
+  const chapters = splitEbookChapters(ebook.body, locale);
+  const progress = Math.round((ebook.progress || 0) * 100);
+
+  return {
+    id: `ebook_${ebook.id}`,
+    title: ebook.title,
+    type: 'menu',
+    ebookId: ebook.id,
+    detailLines: [
+      ebook.author || unknownAuthor(locale),
+      progress ? tx(locale, '{count}% read', '已读 {count}%', { count: progress }) : countText(locale, chapters.length, 'chapter', 'chapters', '章'),
+      new Date(ebook.updatedAt).toLocaleString(),
+    ],
+    children: [
+      ebookReaderNode(ebook, progress ? tx(locale, 'Continue ({count}%)', '继续阅读（{count}%）', { count: progress }) : tx(locale, 'Start Reading', '开始阅读'), locale),
+      {
+        id: `ebook_chapters_${ebook.id}`,
+        title: tx(locale, 'Chapters', '章节'),
+        type: 'menu',
+        detailLines: [countText(locale, chapters.length, 'chapter', 'chapters', '章'), tx(locale, 'Open a chapter directly.', '直接打开章节。')],
+        children: chapters.map((chapter, index) => ebookReaderNode(ebook, chapter.title, locale, index)),
+      },
+      {
+        id: `ebook_info_${ebook.id}`,
+        title: tx(locale, 'Book Details', '图书详情'),
+        type: 'localMusicStatus',
+        ebookId: ebook.id,
+        detailLines: [
+          ebook.author || unknownAuthor(locale),
+          countText(locale, chapters.length, 'chapter', 'chapters', '章'),
+          tx(locale, '{count} characters', '{count} 个字符', { count: ebook.body.length }),
+          t(locale, 'updated', { date: new Date(ebook.updatedAt).toLocaleString() }),
+        ],
+      },
+      {
+        id: `ebook_edit_${ebook.id}`,
+        title: tx(locale, 'Edit Text', '编辑文本'),
+        type: 'localMusicStatus',
+        action: 'ebook_edit',
+        ebookId: ebook.id,
+        detailLines: [tx(locale, 'Update title, author, or pasted text.', '更新标题、作者或粘贴文本。')],
+      },
+      {
+        id: `ebook_delete_${ebook.id}`,
+        title: t(locale, 'delete'),
+        type: 'menu',
+        ebookId: ebook.id,
+        statusTone: 'warning',
+        detailLines: [tx(locale, 'Select again to confirm delete.', '再次选择以确认删除。'), ebook.title],
+        children: [{
+          id: `ebook_delete_confirm_${ebook.id}`,
+          title: tx(locale, 'Confirm Delete', '确认删除'),
+          type: 'localMusicStatus' as const,
+          action: 'ebook_delete_confirm' as const,
+          ebookId: ebook.id,
+          statusTone: 'warning' as const,
+          detailLines: [tx(locale, 'This book and its reading progress will be removed.', '此图书及其阅读进度将被移除。')],
+        }],
+      },
+    ],
+  };
+};
+
+const generateEbooksMenu = (local: LocalMusicMenuState = {}): MenuNode => {
+  const locale = normalizeLocale(local.language);
+  const ebooks = local.ebooks || [];
+  return {
+    id: 'ebooks',
+    title: tx(locale, 'Books', '图书'),
+    type: 'menu',
+    previewIcon: <BookOpen className="w-16 h-16 text-sky-600" />,
+    detailLines: [local.ebookImportMessage || countText(locale, ebooks.length, 'book', 'books', '本书'), tx(locale, 'Import EPUB or plain text, then read with chapters and progress.', '导入 EPUB 或纯文本，并按章节和进度阅读。')],
+    children: [
+      {
+        id: 'ebook_import',
+        title: local.isEbookImporting ? tx(locale, 'Importing...', '导入中...') : tx(locale, 'Import Book File', '导入图书文件'),
+        type: 'localMusicStatus',
+        action: 'ebook_import',
+        isLoading: local.isEbookImporting,
+        statusTone: local.ebookImportStatus === 'error' ? 'error' : local.ebookImportStatus === 'success' ? 'success' : 'neutral',
+        detailLines: [
+          local.ebookImportMessage || tx(locale, 'Choose an EPUB, TXT, or Markdown file.', '选择 EPUB、TXT 或 Markdown 文件。'),
+          tx(locale, 'EPUB chapters are extracted from the book file.', 'EPUB 章节会从图书文件中提取。'),
+        ],
+      },
+      {
+        id: 'ebook_add',
+        title: tx(locale, 'Paste Book Text', '粘贴图书文本'),
+        type: 'localMusicStatus',
+        action: 'ebook_add',
+        detailLines: [tx(locale, 'Add a title, author, and plain text. Use # headings for chapters.', '添加标题、作者和纯文本。使用 # 标题作为章节。')],
+      },
+      ...(ebooks.length ? ebooks.map(ebook => ebookToNode(ebook, locale)) : [{
+        id: 'ebooks_empty',
+        title: tx(locale, 'No Books', '无图书'),
+        type: 'localMusicStatus' as const,
+        statusTone: 'warning' as const,
+        detailLines: [tx(locale, 'Paste a plain-text book first.', '请先粘贴一本纯文本图书。')],
+      }]),
+    ],
+  };
+};
+
+const workoutToNode = (workout: WorkoutEntry, locale: Locale): MenuNode => ({
+  id: `workout_${workout.id}`,
+  title: workout.title,
+  type: 'menu',
+  workoutId: workout.id,
+  detailLines: [workout.date, workout.notes || t(locale, 'noNotes')],
+  children: [
+    {
+      id: `workout_edit_${workout.id}`,
+      title: tx(locale, 'Edit', '编辑'),
+      type: 'localMusicStatus',
+      action: 'workout_edit',
+      workoutId: workout.id,
+      detailLines: [workout.title, workout.date],
+    },
+    {
+      id: `workout_delete_${workout.id}`,
+      title: t(locale, 'delete'),
+      type: 'localMusicStatus',
+      action: 'workout_delete',
+      workoutId: workout.id,
+      statusTone: 'warning',
+      detailLines: [workout.title],
+    },
+  ],
+});
+
+const workoutSummaryLines = (workouts: WorkoutEntry[], locale: Locale) => {
+  const today = todayInputValueFromDate(new Date());
+  const lastSevenDays = Date.now() - 6 * 24 * 60 * 60 * 1000;
+  const recentCount = workouts.filter(workout => new Date(`${workout.date}T00:00:00`).getTime() >= lastSevenDays).length;
+  const todayCount = workouts.filter(workout => workout.date === today).length;
+  const lastWorkout = [...workouts].sort((left, right) => right.date.localeCompare(left.date) || right.updatedAt - left.updatedAt)[0];
+
+  return [
+    tx(locale, '{count} logged today', '今天记录 {count} 条', { count: todayCount }),
+    tx(locale, '{count} in the last 7 days', '最近 7 天 {count} 条', { count: recentCount }),
+    lastWorkout ? tx(locale, 'Last: {name} / {date}', '最近：{name} / {date}', { name: lastWorkout.title, date: lastWorkout.date }) : tx(locale, 'No workout history yet', '还没有健身记录'),
+  ];
+};
+
+const generateFitnessMenu = (local: LocalMusicMenuState = {}): MenuNode => {
+  const locale = normalizeLocale(local.language);
+  const workouts = local.workouts || [];
+  const sortedWorkouts = [...workouts].sort((left, right) => right.date.localeCompare(left.date) || right.updatedAt - left.updatedAt);
+  return {
+    id: 'fitness',
+    title: tx(locale, 'Fitness', '健身'),
+    type: 'menu',
+    previewIcon: <Activity className="w-16 h-16 text-emerald-600" />,
+    detailLines: workoutSummaryLines(workouts, locale),
+    children: [
+      {
+        id: 'workout_add',
+        title: tx(locale, 'Log Workout', '记录健身'),
+        type: 'localMusicStatus',
+        action: 'workout_add',
+        detailLines: [tx(locale, 'Record type, date, and notes.', '记录类型、日期和备注。')],
+      },
+      {
+        id: 'workout_quick_walk',
+        title: tx(locale, 'Quick: Walk', '快速：步行'),
+        type: 'localMusicStatus',
+        action: 'workout_add_walk',
+        detailLines: [tx(locale, 'Preset title and today date. Add distance or time in notes.', '预设标题和今天日期，在备注中添加距离或时间。')],
+      },
+      {
+        id: 'workout_quick_run',
+        title: tx(locale, 'Quick: Run', '快速：跑步'),
+        type: 'localMusicStatus',
+        action: 'workout_add_run',
+        detailLines: [tx(locale, 'Preset title and today date. Add distance or time in notes.', '预设标题和今天日期，在备注中添加距离或时间。')],
+      },
+      {
+        id: 'workout_quick_strength',
+        title: tx(locale, 'Quick: Strength', '快速：力量'),
+        type: 'localMusicStatus',
+        action: 'workout_add_strength',
+        detailLines: [tx(locale, 'Preset title and today date. Add sets or focus in notes.', '预设标题和今天日期，在备注中添加组数或训练重点。')],
+      },
+      {
+        id: 'workout_summary',
+        title: tx(locale, 'Summary', '摘要'),
+        type: 'localMusicStatus',
+        statusTone: workouts.length ? 'success' : 'warning',
+        detailLines: workoutSummaryLines(workouts, locale),
+      },
+      {
+        id: 'workout_history',
+        title: tx(locale, 'History', '历史'),
+        type: 'menu',
+        detailLines: [countText(locale, workouts.length, 'workout', 'workouts', '条健身记录')],
+        children: workouts.length ? sortedWorkouts.map(workout => workoutToNode(workout, locale)) : [{
+          id: 'workouts_empty',
+          title: tx(locale, 'No Workouts', '无健身记录'),
+          type: 'localMusicStatus' as const,
+          statusTone: 'warning' as const,
+          detailLines: [tx(locale, 'Log a workout first.', '请先记录一次健身。')],
+        }],
+      },
+      ...(sortedWorkouts.slice(0, 3).map(workout => workoutToNode(workout, locale))),
+      ...(!workouts.length ? [{
+        id: 'workouts_empty',
+        title: tx(locale, 'No Recent Workouts', '无最近健身记录'),
+        type: 'localMusicStatus' as const,
+        statusTone: 'warning' as const,
+        detailLines: [tx(locale, 'Use Log Workout or a quick preset.', '使用记录健身或快速预设。')],
+      }] : []),
     ],
   };
 };
@@ -984,22 +1468,23 @@ const radioTone = (status?: RadioStatus): 'neutral' | 'success' | 'warning' | 'e
 };
 
 const radioStatusLines = (local: LocalMusicMenuState = {}) => {
+  const locale = normalizeLocale(local.language);
   const status = local.radioStatus;
   return [
-    status?.message || local.radioMessage || 'Checking radio hardware...',
-    `Wired headset: ${status?.wiredHeadsetConnected ? 'connected' : 'required'}`,
-    `Broadcast hardware: ${status?.radioHardwareFeaturePresent ? 'present' : 'missing'}`,
-    `Radio backend: ${status?.radioBackendAvailable ? 'available' : 'unavailable'}`,
+    status?.message || local.radioMessage || tx(locale, 'Checking radio hardware...', '正在检查收音机硬件...'),
+    tx(locale, 'Wired headset: {value}', '有线耳机：{value}', { value: status?.wiredHeadsetConnected ? tx(locale, 'connected', '已连接') : tx(locale, 'required', '必需') }),
+    tx(locale, 'Broadcast hardware: {value}', '广播硬件：{value}', { value: status?.radioHardwareFeaturePresent ? tx(locale, 'present', '存在') : tx(locale, 'missing', '缺失') }),
+    tx(locale, 'Radio backend: {value}', '收音机后端：{value}', { value: status?.radioBackendAvailable ? tx(locale, 'available', '可用') : tx(locale, 'unavailable', '不可用') }),
   ];
 };
 
-const radioStationNode = (station: RadioStation, preset = false): MenuNode => ({
+const radioStationNode = (station: RadioStation, locale: Locale, preset = false): MenuNode => ({
   id: `${preset ? 'radio_preset' : 'radio_station'}_${station.frequency.toFixed(1).replace('.', '_')}`,
   title: station.title || `${station.frequency.toFixed(1)} MHz`,
   type: 'radioTune',
   action: 'radio_tune',
   radioFrequency: station.frequency,
-  detailLines: [`${station.frequency.toFixed(1)} MHz`, preset ? 'Saved preset' : 'Scanned station'],
+  detailLines: [`${station.frequency.toFixed(1)} MHz`, preset ? tx(locale, 'Saved preset', '已保存预设') : tx(locale, 'Scanned station', '扫描到的电台')],
 });
 
 const generateRadioMenu = (local: LocalMusicMenuState = {}): MenuNode => {
@@ -1034,13 +1519,13 @@ const generateRadioMenu = (local: LocalMusicMenuState = {}): MenuNode => {
         title: t(locale, 'stations'),
         type: 'radioStationList',
         children: stations.length
-          ? stations.map(station => radioStationNode(station))
+          ? stations.map(station => radioStationNode(station, locale))
           : [{
               id: 'radio_no_stations',
               title: t(locale, 'noStations'),
               type: 'radioStatus',
               statusTone: radioTone(status),
-              detailLines: ['Run Scan Stations when a real backend is available.'],
+              detailLines: [tx(locale, 'Run Scan Stations when a real backend is available.', '真实后端可用时运行扫描电台。')],
             }],
       },
       {
@@ -1074,7 +1559,7 @@ const generateRadioMenu = (local: LocalMusicMenuState = {}): MenuNode => {
           ...(
             presets.length
               ? presets.flatMap(preset => [
-                  radioStationNode(preset, true),
+                  radioStationNode(preset, locale, true),
                   {
                     id: `radio_delete_preset_${preset.frequency.toFixed(1).replace('.', '_')}`,
                     title: `${t(locale, 'delete')} ${preset.frequency.toFixed(1)}`,
@@ -1089,7 +1574,7 @@ const generateRadioMenu = (local: LocalMusicMenuState = {}): MenuNode => {
                   title: t(locale, 'noPresets'),
                   type: 'radioStatus' as const,
                   statusTone: 'warning' as const,
-                  detailLines: ['Saved presets appear here.'],
+                  detailLines: [tx(locale, 'Saved presets appear here.', '保存的预设会显示在这里。')],
                 }]
           ),
         ],
@@ -1127,6 +1612,11 @@ const backlightLabel = (value: string | undefined, locale: Locale) => (
   value === 'Always On' ? t(locale, 'alwaysOn') : value || '1m'
 );
 
+const deviceModeLabel = (mode: DeviceMode | undefined, locale: Locale) => {
+  const touch = mode === 'nano6Touch';
+  return touch ? tx(locale, 'iPod nano 6 Touch', 'iPod nano 6 触摸') : tx(locale, 'Click Wheel', '滚轮');
+};
+
 const generateMainMenuSettings = (local: LocalMusicMenuState = {}): MenuNode => {
   const locale = normalizeLocale(local.language);
   const titles: Record<string, string> = {
@@ -1134,6 +1624,9 @@ const generateMainMenuSettings = (local: LocalMusicMenuState = {}): MenuNode => 
     videos: t(locale, 'videos'),
     photos: t(locale, 'photos'),
     radio: t(locale, 'radio'),
+    fitness: tx(locale, 'Fitness', '健身'),
+    voice_memos: tx(locale, 'Voice Memos', '语音备忘录'),
+    ebooks: tx(locale, 'Books', '图书'),
     notes: t(locale, 'notes'),
     ex_clock: t(locale, 'clock'),
     ex_contacts: t(locale, 'contacts'),
@@ -1185,7 +1678,7 @@ const generateContactsMenu = (local: LocalMusicMenuState = {}): MenuNode => {
         type: 'localMusicStatus',
         action: 'contact_add',
         statusTone: 'neutral',
-        detailLines: ['Creates a local SquarePod contact.'],
+        detailLines: [tx(locale, 'Creates a local SquarePod contact.', '创建本地 SquarePod 联系人。')],
       },
       ...contacts.map(contact => ({
         id: `contact_${contact.id}`,
@@ -1221,15 +1714,15 @@ const generateContactsMenu = (local: LocalMusicMenuState = {}): MenuNode => {
   };
 };
 
-const sleepActionLabel = (action: SleepTimerEndAction) => {
+const sleepActionLabel = (action: SleepTimerEndAction, locale: Locale) => {
   switch (action) {
     case 'fadePause':
-      return 'Fade Out + Pause';
+      return tx(locale, 'Fade Out + Pause', '淡出并暂停');
     case 'lock':
-      return 'Lock Screen';
+      return tx(locale, 'Lock Screen', '锁定屏幕');
     case 'pause':
     default:
-      return 'Pause Playback';
+      return tx(locale, 'Pause Playback', '暂停播放');
   }
 };
 
@@ -1250,10 +1743,10 @@ const generateClockMenu = (local: LocalMusicMenuState = {}): MenuNode => {
   const timerRunning = timer?.status === 'running';
   const timerCompleted = timer?.status === 'completed';
   const timerLines = timerRunning
-    ? [`${Math.ceil(remaining / 60000)} min left`, `Ends with: ${sleepActionLabel(timer.endAction)}`]
+    ? [tx(locale, '{count} min left', '剩余 {count} 分钟', { count: Math.ceil(remaining / 60000) }), tx(locale, 'Ends with: {action}', '结束时执行：{action}', { action: sleepActionLabel(timer.endAction, locale) })]
     : timerCompleted
-      ? ['Timer expired.', `Ended with: ${sleepActionLabel(timer.endAction)}`]
-      : ['Select a duration.', `Ends with: ${sleepActionLabel(timer?.endAction || 'pause')}`];
+      ? [tx(locale, 'Timer expired.', '定时器已结束。'), tx(locale, 'Ended with: {action}', '已执行：{action}', { action: sleepActionLabel(timer.endAction, locale) })]
+      : [tx(locale, 'Select a duration.', '选择时长。'), tx(locale, 'Ends with: {action}', '结束时执行：{action}', { action: sleepActionLabel(timer?.endAction || 'pause', locale) })];
 
   return {
     id: 'ex_clock',
@@ -1262,29 +1755,32 @@ const generateClockMenu = (local: LocalMusicMenuState = {}): MenuNode => {
     previewIcon: <Clock className="w-16 h-16" />,
     detailLines: timerLines,
     children: [
+      { id: 'clk_local', title: tx(locale, 'Local Time', '本地时间'), type: 'clock', detailLines: [tx(locale, 'Current device time.', '当前设备时间。')] },
       {
         id: timerRunning ? 'sleep_timer_running' : timerCompleted ? 'sleep_timer_completed' : 'sleep_timer',
-        title: timerRunning ? 'Sleep Timer: On' : timerCompleted ? 'Sleep Timer: Done' : 'Sleep Timer',
+        title: timerRunning ? tx(locale, 'Sleep Timer: On', '睡眠定时：开启') : timerCompleted ? tx(locale, 'Sleep Timer: Done', '睡眠定时：完成') : tx(locale, 'Sleep Timer', '睡眠定时'),
         type: 'clock',
         statusTone: timerRunning ? 'success' : timerCompleted ? 'warning' : 'neutral',
         detailLines: timerLines,
+        sleepTimerDurationMs: timer?.durationMs,
+        sleepTimerStartedAt: timer?.startedAt,
         children: [
           ...(timerRunning || timerCompleted ? [
             {
               id: 'sleep_timer_cancel',
-              title: timerCompleted ? 'Clear Timer' : 'Cancel Timer',
+              title: timerCompleted ? tx(locale, 'Clear Timer', '清除定时器') : tx(locale, 'Cancel Timer', '取消定时器'),
               type: 'localMusicStatus' as const,
               action: 'sleep_timer_cancel' as const,
               statusTone: 'warning' as const,
-              detailLines: ['Stop the timer without changing playback.'],
+              detailLines: [tx(locale, 'Stop the timer without changing playback.', '停止定时器，不改变播放状态。')],
             },
             {
               id: 'sleep_timer_end_now',
-              title: 'End Now',
+              title: tx(locale, 'End Now', '立即结束'),
               type: 'localMusicStatus' as const,
               action: 'sleep_timer_end_now' as const,
               statusTone: 'warning' as const,
-              detailLines: [`Run action now: ${sleepActionLabel(timer.endAction)}.`],
+              detailLines: [tx(locale, 'Run action now: {action}.', '立即执行：{action}。', { action: sleepActionLabel(timer.endAction, locale) })],
             },
           ] : [
             ...[15, 30, 45, 60].map(minutes => ({
@@ -1295,23 +1791,31 @@ const generateClockMenu = (local: LocalMusicMenuState = {}): MenuNode => {
               sleepTimerDurationMs: minutes * 60000,
               sleepTimerMode: 'duration' as const,
               statusTone: 'neutral' as const,
-              detailLines: [`Start a ${minutes} minute sleep timer.`, `Ends with: ${sleepActionLabel(timer?.endAction || 'pause')}`],
+              detailLines: [tx(locale, 'Start a {count} minute sleep timer.', '启动 {count} 分钟睡眠定时器。', { count: minutes }), tx(locale, 'Ends with: {action}', '结束时执行：{action}', { action: sleepActionLabel(timer?.endAction || 'pause', locale) })],
             })),
           ]),
           {
             id: 'sleep_timer_action',
-            title: `End Action: ${sleepActionLabel(timer?.endAction || 'pause')}`,
+            title: tx(locale, 'End Action: {action}', '结束操作：{action}', { action: sleepActionLabel(timer?.endAction || 'pause', locale) }),
             type: 'localMusicStatus',
             action: 'sleep_timer_cycle_action',
             statusTone: 'neutral',
-            detailLines: ['Select cycles Pause / Fade Out + Pause / Lock Screen.'],
+            detailLines: [tx(locale, 'Select cycles Pause / Fade Out + Pause / Lock Screen.', 'Select 循环切换暂停 / 淡出并暂停 / 锁定屏幕。')],
           },
         ],
       },
-      { id: 'clk_local', title: 'Local Time', type: 'clock' },
-      { id: 'clk_new_york', title: 'New York', type: 'clock' },
-      { id: 'clk_london', title: 'London', type: 'clock' },
-      { id: 'clk_tokyo', title: 'Tokyo', type: 'clock' },
+      { id: 'clk_stopwatch', title: t(locale, 'stopwatch'), type: 'stopwatch', detailLines: [tx(locale, 'Select to start, pause, or resume.', 'Select 开始、暂停或继续。')] },
+      {
+        id: 'world_clocks',
+        title: tx(locale, 'World Clock', '世界时钟'),
+        type: 'menu',
+        detailLines: ['New York, London, Tokyo'],
+        children: [
+          { id: 'clk_new_york', title: 'New York', type: 'clock', detailLines: ['America/New_York'] },
+          { id: 'clk_london', title: 'London', type: 'clock', detailLines: ['Europe/London'] },
+          { id: 'clk_tokyo', title: 'Tokyo', type: 'clock', detailLines: ['Asia/Tokyo'] },
+        ],
+      },
     ],
   };
 };
@@ -1331,11 +1835,11 @@ const generateNotesMenu = (local: LocalMusicMenuState = {}, id = 'notes'): MenuN
     children: [
       {
         id: 'note_quick',
-        title: draft ? 'Continue Draft' : 'Quick Note',
+        title: draft ? tx(locale, 'Continue Draft', '继续草稿') : tx(locale, 'Quick Note', '快速备忘录'),
         type: 'localMusicStatus',
         action: 'note_quick',
         statusTone: draft ? 'warning' : 'neutral',
-        detailLines: draft ? [draft.title || 'Unsaved draft', 'Select to continue.'] : ['Create a note, optionally attached to the current song.'],
+        detailLines: draft ? [draft.title || tx(locale, 'Unsaved draft', '未保存草稿'), tx(locale, 'Select to continue.', 'Select 继续。')] : [tx(locale, 'Create a note, optionally attached to the current song.', '创建备忘录，可附加到当前歌曲。')],
       },
       {
         id: 'note_add',
@@ -1343,15 +1847,15 @@ const generateNotesMenu = (local: LocalMusicMenuState = {}, id = 'notes'): MenuN
         type: 'localMusicStatus',
         action: 'note_add',
         statusTone: 'neutral',
-        detailLines: ['Create a clean note without song context.'],
+        detailLines: [tx(locale, 'Create a clean note without song context.', '创建不带歌曲上下文的空白备忘录。')],
       },
       ...(draft ? [{
         id: 'note_discard_draft',
-        title: 'Discard Draft',
+        title: tx(locale, 'Discard Draft', '丢弃草稿'),
         type: 'localMusicStatus' as const,
         action: 'note_discard_draft' as const,
         statusTone: 'warning' as const,
-        detailLines: ['Delete the unsaved draft.'],
+        detailLines: [tx(locale, 'Delete the unsaved draft.', '删除未保存草稿。')],
       }] : []),
       ...notes.map(note => ({
         id: `note_${note.id}`,
@@ -1359,7 +1863,7 @@ const generateNotesMenu = (local: LocalMusicMenuState = {}, id = 'notes'): MenuN
         type: 'noteDetail' as const,
         noteId: note.id,
         detailLines: [
-          note.attachedSongTitle ? `${note.attachedSongArtist || 'Now Playing'} - ${note.attachedSongTitle}` : '',
+          note.attachedSongTitle ? `${note.attachedSongArtist || t(locale, 'nowPlaying')} - ${note.attachedSongTitle}` : '',
           note.body,
           t(locale, 'updated', { date: new Date(note.updatedAt).toLocaleDateString() }),
         ].filter(Boolean),
@@ -1379,15 +1883,15 @@ const generateNotesMenu = (local: LocalMusicMenuState = {}, id = 'notes'): MenuN
             type: 'noteDetail' as const,
             noteId: note.id,
             statusTone: 'warning' as const,
-            detailLines: ['Select again to confirm delete.', note.title],
+            detailLines: [tx(locale, 'Select again to confirm delete.', '再次选择以确认删除。'), note.title],
             children: [{
               id: `note_delete_confirm_${note.id}`,
-              title: 'Confirm Delete',
+              title: tx(locale, 'Confirm Delete', '确认删除'),
               type: 'localMusicStatus' as const,
               action: 'note_delete_confirm' as const,
               noteId: note.id,
               statusTone: 'warning' as const,
-              detailLines: ['This cannot be undone.'],
+              detailLines: [tx(locale, 'This cannot be undone.', '此操作无法撤销。')],
             }],
           },
         ],
@@ -1440,15 +1944,15 @@ const calendarEventToNode = (event: CalendarEventEntry, locale: Locale): MenuNod
       type: 'calendarEventDetail',
       calendarEventId: event.id,
       statusTone: 'warning',
-      detailLines: ['Select again to confirm delete.', event.title],
+      detailLines: [tx(locale, 'Select again to confirm delete.', '再次选择以确认删除。'), event.title],
       children: [{
         id: `calendar_event_delete_confirm_${event.id}`,
-        title: 'Confirm Delete',
+        title: tx(locale, 'Confirm Delete', '确认删除'),
         type: 'localMusicStatus',
         action: 'calendar_event_delete_confirm',
         calendarEventId: event.id,
         statusTone: 'warning',
-        detailLines: ['This cannot be undone.'],
+        detailLines: [tx(locale, 'This cannot be undone.', '此操作无法撤销。')],
       }],
     },
   ],
@@ -1478,10 +1982,10 @@ const generateCalendarMenu = (local: LocalMusicMenuState = {}): MenuNode => {
     children: [
       {
         id: 'calendar_today',
-        title: focusDate === today ? 'Today' : formatEventDate(focusDate),
+        title: focusDate === today ? tx(locale, 'Today', '今天') : formatEventDate(focusDate),
         type: 'calendarEventList',
         calendarEventDate: focusDate,
-        detailLines: todayEvents.length ? [`${todayEvents.length} event${todayEvents.length === 1 ? '' : 's'}`, 'Next/Previous changes day.'] : ['No events on this day.', 'Long Select is not required: use New Event.'],
+        detailLines: todayEvents.length ? [countText(locale, todayEvents.length, 'event', 'events', '个日程'), tx(locale, 'Next/Previous changes day.', 'Next/Previous 切换日期。')] : [tx(locale, 'No events on this day.', '这一天没有日程。'), tx(locale, 'Long Select is not required: use New Event.', '无需长按 Select：使用新建日程。')],
         children: todayEvents.length
           ? todayEvents.map(event => calendarEventToNode(event, locale))
           : [{
@@ -1490,14 +1994,14 @@ const generateCalendarMenu = (local: LocalMusicMenuState = {}): MenuNode => {
               type: 'localMusicStatus',
               action: 'calendar_event_add',
               calendarEventDate: focusDate,
-              detailLines: ['Create an event for this day.'],
+              detailLines: [tx(locale, 'Create an event for this day.', '为这一天创建日程。')],
             }],
       },
       {
         id: 'calendar_upcoming',
-        title: 'Upcoming',
+        title: tx(locale, 'Upcoming', '即将到来'),
         type: 'calendarEventList',
-        detailLines: upcomingEvents.length ? [`${upcomingEvents.length} upcoming events`] : ['No upcoming events.'],
+        detailLines: upcomingEvents.length ? [tx(locale, '{count} upcoming events', '{count} 个即将到来的日程', { count: upcomingEvents.length })] : [tx(locale, 'No upcoming events.', '没有即将到来的日程。')],
         children: upcomingEvents.length
           ? upcomingEvents.map(event => calendarEventToNode(event, locale))
           : [{
@@ -1505,7 +2009,7 @@ const generateCalendarMenu = (local: LocalMusicMenuState = {}): MenuNode => {
               title: t(locale, 'newEvent'),
               type: 'localMusicStatus',
               action: 'calendar_event_add',
-              detailLines: ['Create the next event.'],
+              detailLines: [tx(locale, 'Create the next event.', '创建下一个日程。')],
             }],
       },
       {
@@ -1514,7 +2018,7 @@ const generateCalendarMenu = (local: LocalMusicMenuState = {}): MenuNode => {
         type: 'localMusicStatus',
         action: 'calendar_event_add',
         statusTone: 'neutral',
-        detailLines: ['Creates a local SquarePod calendar event.'],
+        detailLines: [tx(locale, 'Creates a local SquarePod calendar event.', '创建本地 SquarePod 日程。')],
       },
       {
         id: 'calendar_month',
@@ -1522,7 +2026,7 @@ const generateCalendarMenu = (local: LocalMusicMenuState = {}): MenuNode => {
         type: 'calendar',
         calendarEventDate: focusDate,
         detailLines: monthEvents.length
-          ? [t(locale, 'eventsThisMonth', { count: monthEvents.length, plural: monthEvents.length === 1 ? '' : 's' }), 'Next/Previous changes month.']
+          ? [t(locale, 'eventsThisMonth', { count: monthEvents.length, plural: monthEvents.length === 1 ? '' : 's' }), tx(locale, 'Next/Previous changes month.', 'Next/Previous 切换月份。')]
           : [t(locale, 'noEventsThisMonth')],
         children: eventNodes,
       },
@@ -1616,6 +2120,17 @@ const generateSettingsMenu = (local: LocalMusicMenuState = {}): MenuNode => {
         type: 'menu',
         children: [
           {
+            id: 'set_device_mode',
+            title: `${tx(locale, 'Control Mode', '控制模式')}: ${deviceModeLabel(local.deviceMode, locale)}`,
+            type: 'localMusicStatus',
+            action: 'settings_cycle_device_mode',
+            statusTone: local.deviceMode === 'nano6Touch' ? 'success' : 'neutral',
+            detailLines: [
+              deviceModeLabel(local.deviceMode, locale),
+              `${deviceModeLabel('clickWheel', locale)} / ${deviceModeLabel('nano6Touch', locale)}`,
+            ],
+          },
+          {
             id: 'set_click_sound',
             title: `${t(locale, 'clickSound')}: ${formatPercent(local.uiSoundVolume ?? 0.65)}`,
             type: 'localMusicStatus',
@@ -1655,18 +2170,6 @@ const generateSettingsMenu = (local: LocalMusicMenuState = {}): MenuNode => {
             statusTone: 'neutral',
             detailLines: [
               `${t(locale, 'autoScan')}: ${enabledLabel(local.autoScan !== false, locale)}`,
-              `${t(locale, 'on')} / ${t(locale, 'off')}`,
-            ],
-          },
-          {
-            id: 'set_audiobooks',
-            title: `${t(locale, 'audiobooks')}: ${enabledLabel(local.audiobooksEnabled, locale)}`,
-            type: 'localMusicStatus',
-            action: 'settings_toggle_audiobook',
-            switchValue: local.audiobooksEnabled !== false,
-            statusTone: 'neutral',
-            detailLines: [
-              `${t(locale, 'audiobooks')}: ${enabledLabel(local.audiobooksEnabled, locale)}`,
               `${t(locale, 'on')} / ${t(locale, 'off')}`,
             ],
           },
@@ -1717,6 +2220,9 @@ export const generateMenuRoot = (local: LocalMusicMenuState = {}): MenuNode => {
     videos: generateVideosMenu(local),
     photos: generatePhotosMenu(local),
     radio: generateRadioMenu(local),
+    fitness: generateFitnessMenu(local),
+    voice_memos: generateVoiceMemosMenu(local),
+    ebooks: generateEbooksMenu(local),
     notes: generateNotesMenu(local),
     ex_clock: generateClockMenu(local),
     ex_contacts: generateContactsMenu(local),

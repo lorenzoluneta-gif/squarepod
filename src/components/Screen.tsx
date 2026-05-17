@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { MenuNode, PlaybackMode, Song, TextEditorState } from '../types';
-import { motion, useReducedMotion } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { CachedImage } from './CachedImage';
 import { DeviceStatus } from '../native/deviceStatus';
 import { Capacitor } from '@capacitor/core';
-import { Locale, t } from '../i18n';
+import { Locale, t, text } from '../i18n';
 import type { SleepTimerMenuState } from '../data';
+import { findAlphaSectionForIndex } from '../alphaIndex';
 
 export type VideoCommand =
   | { id: number; action: 'toggle' }
@@ -40,6 +41,7 @@ interface ScreenProps {
   onTextEditorSave: () => void;
   onTextEditorCancel: () => void;
   onCoverFlowSettleTarget: (index: number) => void;
+  alphaJumpKey?: string;
 }
 
 const COVER_FLOW_DRAG_MAX_SPEED = 14;
@@ -54,6 +56,10 @@ const COVER_FLOW_RELEASE_VELOCITY_EPSILON = 0.15;
 const COVER_FLOW_VISIBLE_RANGE = 4.25;
 const PHOTO_GRID_COLUMNS = 4;
 const PHOTO_GRID_VISIBLE_ROWS = 2;
+
+const tx = (locale: Locale | string | undefined, en: string, zhCN: string, values: Record<string, string | number> = {}) => (
+  text(locale, { en, 'zh-CN': zhCN }, values)
+);
 
 const AppleSwitch = ({ checked, selected = false }: { checked: boolean; selected?: boolean }) => (
   <motion.div
@@ -111,11 +117,14 @@ export function Screen({
   onTextEditorSave,
   onTextEditorCancel,
   onCoverFlowSettleTarget,
+  alphaJumpKey,
 }: ScreenProps) {
   const [coverFlowPosition, setCoverFlowPosition] = useState(cursorIndex);
   const [batteryPercent, setBatteryPercent] = useState<number>();
   const [batteryCharging, setBatteryCharging] = useState(false);
   const [now, setNow] = useState(() => new Date());
+  const [videoHasStarted, setVideoHasStarted] = useState(false);
+  const [videoIsPaused, setVideoIsPaused] = useState(true);
   const coverFlowPositionRef = useRef(cursorIndex);
   const coverFlowTargetRef = useRef(cursorIndex);
   const coverFlowMotionModeRef = useRef<'drag' | 'settle'>('settle');
@@ -281,6 +290,12 @@ export function Screen({
     const timer = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (currentNode.type !== 'videoDetail') return;
+    setVideoHasStarted(false);
+    setVideoIsPaused(true);
+  }, [currentNode.id, currentNode.type]);
 
   useEffect(() => {
     if (currentNode.type !== 'textEditor' || !textEditor) return undefined;
@@ -624,9 +639,9 @@ export function Screen({
         </div>
         <div className="w-1/2 flex flex-col justify-center px-6 font-sans overflow-hidden">
           <div className="text-[10px] font-black uppercase leading-none text-blue-600">{t(locale, 'song')}</div>
-          <div className="mt-2 text-lg font-black leading-tight text-gray-950 line-clamp-2">{track.title || 'Unknown Title'}</div>
-          <div className="mt-2 text-sm font-bold leading-tight text-gray-700 line-clamp-2">{track.artist || 'Unknown Artist'}</div>
-          <div className="mt-1 text-xs font-semibold leading-tight text-gray-500 line-clamp-2">{track.album || 'Unknown Album'}</div>
+          <div className="mt-2 text-lg font-black leading-tight text-gray-950 line-clamp-2">{track.title || t(locale, 'title')}</div>
+          <div className="mt-2 text-sm font-bold leading-tight text-gray-700 line-clamp-2">{track.artist || tx(locale, 'Unknown Artist', '未知艺人')}</div>
+          <div className="mt-1 text-xs font-semibold leading-tight text-gray-500 line-clamp-2">{track.album || tx(locale, 'Unknown Album', '未知专辑')}</div>
           <div className="mt-5 flex items-center gap-2">
             <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm">
               <svg width="11" height="12" viewBox="0 0 10 12" fill="currentColor" aria-hidden="true">
@@ -641,7 +656,7 @@ export function Screen({
   };
 
   const renderCoverArtwork = (album: MenuNode, isCenter: boolean) => {
-    const title = album.title || 'Unknown Album';
+    const title = album.title || tx(locale, 'Unknown Album', '未知专辑');
 
     return (
       <>
@@ -682,7 +697,7 @@ export function Screen({
     const visibleAlbums = albums
       .map((album, index) => ({ album, index, distance: index - renderPosition }))
       .filter(({ index, distance }) => Math.abs(distance) <= COVER_FLOW_VISIBLE_RANGE || (coverFlowIsSelecting && index === cursorIndex));
-    const artist = displayAlbum.detailLines?.[0] || 'Unknown Artist';
+    const artist = displayAlbum.detailLines?.[0] || tx(locale, 'Unknown Artist', '未知艺人');
 
     return (
       <div className="relative flex-1 overflow-hidden bg-[linear-gradient(180deg,#f6f6f4_0%,#d9dbdf_46%,#a9adb5_47%,#f3f4f3_100%)]">
@@ -820,11 +835,18 @@ export function Screen({
                {children.map((child, idx) => {
                  const isSelected = idx === cursorIndex;
                  const hasSwitch = typeof child.switchValue === 'boolean';
+                 const section = findAlphaSectionForIndex(currentNode.alphaSections, idx);
+                 const showSection = section?.startIndex === idx;
                  return (
                    <div 
                       key={child.id} 
 	                      className={`relative h-[32px] px-4 flex justify-between items-center bg-transparent ${child.reorderActive ? 'ring-2 ring-inset ring-amber-300' : ''}`}
 	                   >
+                     {showSection && !isSelected && (
+                       <span className="absolute left-1 top-1 z-10 text-[9px] font-black leading-none text-blue-500/80">
+                         {section.key}
+                       </span>
+                     )}
 	                     <span className={`relative min-w-0 text-sm font-bold truncate z-10 transition-colors duration-150 ${isSelected ? 'text-white' : 'text-gray-800'}`}>
 	                       {child.title}
 	                     </span>
@@ -907,8 +929,8 @@ export function Screen({
     if (!textEditor) return renderServiceStatus();
 
     const title = textEditor.mode === 'create'
-      ? textEditor.kind === 'note' ? t(locale, 'newNote') : textEditor.kind === 'contact' ? t(locale, 'newContact') : t(locale, 'newEvent')
-      : textEditor.kind === 'note' ? t(locale, 'editNote') : textEditor.kind === 'contact' ? t(locale, 'editContact') : t(locale, 'editEvent');
+      ? textEditor.kind === 'note' ? t(locale, 'newNote') : textEditor.kind === 'contact' ? t(locale, 'newContact') : textEditor.kind === 'calendarEvent' ? t(locale, 'newEvent') : textEditor.kind === 'ebook' ? tx(locale, 'New Book', '新建图书') : tx(locale, 'New Workout', '新建健身记录')
+      : textEditor.kind === 'note' ? t(locale, 'editNote') : textEditor.kind === 'contact' ? t(locale, 'editContact') : textEditor.kind === 'calendarEvent' ? t(locale, 'editEvent') : textEditor.kind === 'ebook' ? tx(locale, 'Edit Book', '编辑图书') : tx(locale, 'Edit Workout', '编辑健身记录');
 
     return (
       <form
@@ -953,6 +975,22 @@ export function Screen({
               {renderTextArea('notes', t(locale, 'notes'), { placeholder: t(locale, 'eventNotes') })}
             </>
           )}
+
+          {textEditor.kind === 'ebook' && (
+            <>
+              {renderTextField('title', t(locale, 'title'), { first: true, placeholder: tx(locale, 'Book title', '图书标题') })}
+              {renderTextField('name', tx(locale, 'Author', '作者'), { placeholder: tx(locale, 'Author', '作者') })}
+              {renderTextArea('body', tx(locale, 'Text', '文本'), { placeholder: tx(locale, 'Book text', '图书文本') })}
+            </>
+          )}
+
+          {textEditor.kind === 'workout' && (
+            <>
+              {renderTextField('title', t(locale, 'title'), { first: true, placeholder: tx(locale, 'Workout', '健身') })}
+              {renderTextField('date', t(locale, 'date'), { type: 'date' })}
+              {renderTextArea('notes', t(locale, 'notes'), { placeholder: tx(locale, 'Distance, duration, route, effort', '距离、时长、路线、强度') })}
+            </>
+          )}
         </div>
 
         {textEditor.error && (
@@ -974,11 +1012,11 @@ export function Screen({
       const seconds = remainingSeconds % 60;
       const formatted = sleepTimer.status === 'running'
         ? `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-        : sleepTimer.status === 'completed' ? 'Done' : 'Off';
+        : sleepTimer.status === 'completed' ? tx(locale, 'Done', '完成') : t(locale, 'off');
 
       return (
         <div className="flex-1 bg-neutral-950 text-white flex flex-col justify-center px-6">
-          <div className="text-[10px] font-black uppercase text-white/55">Sleep Timer</div>
+          <div className="text-[10px] font-black uppercase text-white/55">{tx(locale, 'Sleep Timer', '睡眠定时')}</div>
           <div className="mt-2 text-4xl font-black leading-none tabular-nums">{formatted}</div>
           <div className="mt-4 space-y-1">
             {(currentNode.detailLines || []).map((line, index) => (
@@ -986,8 +1024,8 @@ export function Screen({
             ))}
           </div>
           <div className="mt-6 grid grid-cols-2 gap-2 text-[10px] font-black uppercase text-white/60">
-            <div>Select action</div>
-            <div>Menu back</div>
+            <div>{tx(locale, 'Select action', 'Select 操作')}</div>
+            <div>{tx(locale, 'Menu back', 'Menu 返回')}</div>
             <div>Next +5m</div>
             <div>Prev -5m</div>
           </div>
@@ -1116,30 +1154,30 @@ export function Screen({
     return (
        <div className="flex-1 bg-neutral-100 flex flex-col p-5">
          <div className="flex items-center justify-between">
-           <div className="text-[10px] font-black uppercase text-gray-500">{stopwatchRunning ? t(locale, 'running') : stopwatchElapsedMs > 0 ? 'Paused' : t(locale, 'stopped')}</div>
+           <div className="text-[10px] font-black uppercase text-gray-500">{stopwatchRunning ? t(locale, 'running') : stopwatchElapsedMs > 0 ? tx(locale, 'Paused', '已暂停') : t(locale, 'stopped')}</div>
            <div className={`h-2 w-2 rounded-full ${stopwatchRunning ? 'bg-red-500' : 'bg-gray-400'}`} />
          </div>
          <div className="mt-2 text-4xl font-black font-mono tracking-tighter text-gray-900 tabular-nums">{formatted}</div>
          <div className="mt-4 min-h-[82px] space-y-1 overflow-hidden">
            {lapRows.length ? lapRows.map(lap => (
              <div key={lap.index} className="flex justify-between border-b border-gray-200 pb-1 text-[11px] font-black tabular-nums text-gray-700">
-               <span>Lap {String(lap.index).padStart(2, '0')}</span>
+               <span>{tx(locale, 'Lap {count}', '计圈 {count}', { count: String(lap.index).padStart(2, '0') })}</span>
                <span>{formatMs(lap.split)}</span>
              </div>
            )) : stopwatchLastSession ? (
              <div className="space-y-1 text-[11px] font-bold text-gray-600">
-               <div className="font-black text-gray-900">Last Session</div>
-               <div>Total {formatMs(stopwatchLastSession.totalMs)}</div>
-               <div>{stopwatchLastSession.laps.length} laps</div>
+               <div className="font-black text-gray-900">{tx(locale, 'Last Session', '上次记录')}</div>
+               <div>{tx(locale, 'Total {value}', '总计 {value}', { value: formatMs(stopwatchLastSession.totalMs) })}</div>
+               <div>{tx(locale, '{count} laps', '{count} 圈', { count: stopwatchLastSession.laps.length })}</div>
              </div>
            ) : (
-             <div className="text-[11px] font-bold leading-tight text-gray-500">Select starts. Next records a lap. Pause first, then Previous resets.</div>
+             <div className="text-[11px] font-bold leading-tight text-gray-500">{tx(locale, 'Select starts. Next records a lap. Pause first, then Previous resets.', 'Select 开始。Next 记录一圈。先暂停，再用 Previous 重置。')}</div>
            )}
          </div>
          <div className="mt-auto grid grid-cols-3 gap-1 text-center text-[9px] font-black uppercase text-gray-500">
-           <div>Select {stopwatchRunning ? 'Pause' : 'Start'}</div>
-           <div>Next Lap</div>
-           <div>Prev Reset</div>
+           <div>{tx(locale, 'Select {action}', 'Select {action}', { action: stopwatchRunning ? tx(locale, 'Pause', '暂停') : tx(locale, 'Start', '开始') })}</div>
+           <div>{tx(locale, 'Next Lap', 'Next 计圈')}</div>
+           <div>{tx(locale, 'Prev Reset', 'Prev 重置')}</div>
          </div>
        </div>
     );
@@ -1254,17 +1292,44 @@ export function Screen({
     if (!item) return renderServiceStatus();
     const videoSrc = resolveNativeMediaSrc(item.uri);
     const posterSrc = resolveNativeMediaSrc(item.thumbnailUri);
+    const startVideo = () => {
+      const video = videoRef.current;
+      if (!video) return;
+      if (video.ended) video.currentTime = 0;
+      video.play()
+        .then(() => {
+          setVideoHasStarted(true);
+          setVideoIsPaused(false);
+        })
+        .catch(error => console.error('Video playback failed', error));
+    };
 
     return (
-      <div className="flex-1 bg-black flex flex-col">
+      <div className="relative flex-1 bg-black">
         <video
           ref={videoRef}
           src={videoSrc}
           poster={posterSrc}
-          controls
+          controls={videoHasStarted && !videoIsPaused}
           preload="metadata"
-          className="h-full w-full object-contain"
+          className="absolute inset-0 h-full w-full object-contain"
+          onPlay={() => {
+            setVideoHasStarted(true);
+            setVideoIsPaused(false);
+          }}
+          onPause={() => setVideoIsPaused(true)}
+          onEnded={() => setVideoIsPaused(true)}
         />
+        {videoIsPaused && (
+          <button
+            type="button"
+            aria-label={tx(locale, 'Play video', '播放视频')}
+            onClick={startVideo}
+            className="absolute left-1/2 top-1/2 grid h-16 w-16 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-black/62 text-white shadow-[0_8px_22px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.25)] ring-1 ring-white/30 active:scale-95"
+          >
+            <span className="ml-1 block h-0 w-0 border-y-[15px] border-l-[23px] border-y-transparent border-l-current" />
+          </button>
+        )}
       </div>
     );
   };
@@ -1327,7 +1392,7 @@ export function Screen({
           </div>
         )}
         <div className="mt-4 text-xs font-bold text-white/70">
-          {unlockArmed ? 'Press Select to unlock. Menu cancels.' : 'Press Menu, then Select to unlock.'}
+          {unlockArmed ? tx(locale, 'Press Select to unlock. Menu cancels.', '按 Select 解锁。Menu 取消。') : tx(locale, 'Press Menu, then Select to unlock.', '先按 Menu，再按 Select 解锁。')}
         </div>
       </div>
     );
@@ -1363,7 +1428,6 @@ export function Screen({
         return renderServiceStatus();
       case 'about': return renderAbout();
       case 'photos': return renderPhotoGrid();
-      case 'podcasts': return renderRadio();
       case 'videos': return renderPlaceholder();
       case 'settings': return renderPlaceholder();
       case 'placeholder': return renderPlaceholder();
@@ -1375,11 +1439,24 @@ export function Screen({
   const usesFullScreenMedia = currentNode.type === 'photoDetail';
 
   return (
-    <div className="w-full h-full bg-white border-[4px] border-neutral-900 rounded-[36px] shadow-inner flex flex-col overflow-hidden">
+    <div className="relative w-full h-full bg-white border-[4px] border-neutral-900 rounded-[36px] shadow-inner flex flex-col overflow-hidden">
       {!usesFullScreenMedia && renderHeader()}
       <div className={`w-full ${usesFullScreenMedia ? 'h-full' : 'h-[calc(100%-24px)]'} min-h-0 overflow-hidden flex`}>
         {renderScreenContent()}
       </div>
+      <AnimatePresence>
+        {alphaJumpKey && (
+          <motion.div
+            className="pointer-events-none absolute left-1/2 top-1/2 z-[300] grid h-[82px] w-[82px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-[18px] bg-black/72 text-[48px] font-black leading-none text-white shadow-xl"
+            initial={{ opacity: 0, scale: 0.88 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: shouldReduceMotion ? 0 : 0.12 }}
+          >
+            {alphaJumpKey}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

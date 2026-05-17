@@ -1,12 +1,15 @@
 package com.squarepod.app;
 
+import android.graphics.Rect;
 import android.os.Bundle;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
+import androidx.activity.OnBackPressedCallback;
 import com.getcapacitor.BridgeActivity;
+import java.util.Collections;
 
 public class MainActivity extends BridgeActivity {
     @Override
@@ -17,10 +20,19 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(LocalMusicPlugin.class);
         registerPlugin(MediaLibraryPlugin.class);
         registerPlugin(RadioPlugin.class);
+        registerPlugin(ScreenAwakePlugin.class);
         registerPlugin(SpotifyRemotePlugin.class);
+        registerPlugin(VoiceMemosPlugin.class);
         registerPlugin(WheelHapticsPlugin.class);
         super.onCreate(savedInstanceState);
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                enableImmersiveFullscreen();
+            }
+        });
         enableImmersiveFullscreen();
+        installSystemGestureExclusion();
     }
 
     @Override
@@ -34,7 +46,23 @@ public class MainActivity extends BridgeActivity {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) {
             enableImmersiveFullscreen();
+            installSystemGestureExclusion();
         }
+    }
+
+    private void installSystemGestureExclusion() {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) return;
+
+        View root = getWindow().getDecorView();
+        root.post(() -> {
+            Rect fullScreen = new Rect(0, 0, root.getWidth(), root.getHeight());
+            root.setSystemGestureExclusionRects(Collections.singletonList(fullScreen));
+        });
+
+        root.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+            Rect fullScreen = new Rect(0, 0, right - left, bottom - top);
+            view.setSystemGestureExclusionRects(Collections.singletonList(fullScreen));
+        });
     }
 
     private void enableImmersiveFullscreen() {

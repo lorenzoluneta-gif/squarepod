@@ -8,3 +8,38 @@ body,
   margin: 0;
   overflow: hidden;
 }
+
+.nano6-home-wallpaper {
+  background:
+    radial-gradient(ellipse 14px 20px at 14% 10%, rgba(255, 255, 255, 0.78) 0 15%, rgba(255, 255, 255, 0.35) 16% 25%, rgba(26, 89, 104, 0.26) 26% 34%, transparent 35%),
+    radial-gradient(ellipse 12px 17px at 77% 8%, rgba(255, 255, 255, 0.72) 0 14%, rgba(255, 255, 255, 0.26) 15% 24%, rgba(26, 89, 104, 0.24) 25% 34%, transparent 35%),
+    radial-gradient(ellipse 16px 23px at 22% 38%, rgba(255, 255, 255, 0.62) 0 13%, rgba(255, 255, 255, 0.24) 14% 24%, rgba(26, 86, 101, 0.23) 25% 35%, transparent 36%),
+    radial-gradient(ellipse 13px 18px at 64% 44%, rgba(255, 255, 255, 0.55) 0 14%, rgba(255, 255, 255, 0.2) 15% 25%, rgba(31, 93, 92, 0.2) 26% 35%, transparent 36%),
+    radial-gradient(ellipse 17px 24px at 89% 66%, rgba(255, 255, 255, 0.58) 0 14%, rgba(255, 255, 255, 0.2) 15% 24%, rgba(31, 89, 78, 0.19) 25% 35%, transparent 36%),
+    radial-gradient(ellipse 11px 16px at 38% 79%, rgba(255, 255, 255, 0.5) 0 15%, rgba(255, 255, 255, 0.18) 16% 25%, rgba(35, 86, 75, 0.16) 26% 35%, transparent 36%),
+    linear-gradient(145deg, #9fd3d2 0%, #b7d2c5 34%, #cfd6a9 64%, #d6c991 100%);
+}
+
+.nano6-home-wallpaper::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 8px 8px, rgba(24, 66, 68, 0.22) 0 0.7px, transparent 1.4px),
+    radial-gradient(circle at 5px 5px, rgba(255, 255, 255, 0.28) 0 0.55px, transparent 1.2px),
+    repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 7px);
+  background-size: 10px 10px, 10px 10px, 100% 100%;
+  mix-blend-mode: overlay;
+  opacity: 0.46;
+}
+
+.nano6-home-wallpaper::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.18), transparent 38%, rgba(45, 47, 30, 0.17)),
+    radial-gradient(circle at 42% 16%, rgba(255, 255, 255, 0.24), transparent 36%),
+    radial-gradient(circle at 58% 78%, rgba(30, 67, 56, 0.18), transparent 42%);
+  pointer-events: none;
+}

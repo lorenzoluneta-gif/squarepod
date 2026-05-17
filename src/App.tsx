@@ -1,15 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarEventEntry, ContactEntry, generateMenuRoot, isMainMenuItemEnabled, NoteEntry, normalizeMainMenuOrder, SleepTimerMenuState } from './data';
-import { EditorFieldKey, EditorMode, MenuNode, PlaybackMode, SleepTimerEndAction, TextEditorState } from './types';
+import { strFromU8, unzipSync } from 'fflate';
+import { CalendarEventEntry, ContactEntry, DEFAULT_EBOOKS, EbookEntry, generateMenuRoot, isMainMenuItemEnabled, NoteEntry, normalizeMainMenuOrder, SleepTimerMenuState, WorkoutEntry } from './data';
+import { DeviceMode, EditorFieldKey, EditorMode, MenuNode, PlaybackMode, SleepTimerEndAction, TextEditorState } from './types';
 import { useLocalMusic } from './useLocalMusic';
 import { useMediaLibrary } from './useMediaLibrary';
 import { useRadio } from './useRadio';
+import { useVoiceMemos } from './useVoiceMemos';
 import { LocalMusicTrack } from './native/localMusic';
+import { ScreenAwake } from './native/screenAwake';
 import { ClickWheel } from './components/ClickWheel';
 import { Screen, type VideoCommand } from './components/Screen';
+import { Nano6Screen } from './components/Nano6Screen';
 import type { RotateEndMeta } from './useWheel';
 import { setUiSoundVolume } from './audio/uiSounds';
-import { Locale, normalizeLocale, t } from './i18n';
+import { Locale, normalizeLocale, t, text } from './i18n';
+import { findAlphaSectionForIndex } from './alphaIndex';
 
 interface StackItem {
   node: MenuNode;
@@ -33,6 +38,12 @@ interface StopwatchSnapshot {
   };
 }
 
+interface ImportedEbook {
+  title: string;
+  author?: string;
+  body: string;
+}
+
 const CONTINUATION_MODE_KEY = 'squarepod.localContinuationMode.v1';
 const UI_SOUND_VOLUME_KEY = 'squarepod.uiSoundVolume.v1';
 const AUTO_SCAN_KEY = 'squarepod.autoScan.v1';
@@ -42,13 +53,16 @@ const CALENDAR_EVENTS_KEY = 'squarepod.calendarEvents.v1';
 const NOTE_DRAFT_KEY = 'squarepod.noteDraft.v1';
 const SLEEP_TIMER_KEY = 'squarepod.sleepTimer.v1';
 const STOPWATCH_KEY = 'squarepod.stopwatch.v1';
+const EBOOKS_KEY = 'squarepod.ebooks.v1';
+const WORKOUTS_KEY = 'squarepod.workouts.v1';
 const MAIN_MENU_KEY = 'squarepod.mainMenu.v1';
 const MAIN_MENU_ORDER_KEY = 'squarepod.mainMenuOrder.v1';
 const BACKLIGHT_TIMER_KEY = 'squarepod.backlightTimer.v1';
-const AUDIOBOOKS_KEY = 'squarepod.audiobooks.v1';
 const EQ_KEY = 'squarepod.eq.v1';
 const COMPILATIONS_KEY = 'squarepod.compilations.v1';
 const LANGUAGE_KEY = 'squarepod.language.v1';
+const DEVICE_MODE_KEY = 'squarepod.deviceMode.v1';
+const NANO6_WALLPAPER_KEY = 'squarepod.nano6Wallpaper.v1';
 const PLAYBACK_MODE_ORDER: PlaybackMode[] = ['sequential', 'shuffle', 'repeatAll', 'repeatOne'];
 const UI_SOUND_VOLUME_STEPS = [0, 0.25, 0.5, 0.75, 1];
 const DEFAULT_UI_SOUND_VOLUME = 0.65;
@@ -60,6 +74,17 @@ const COVER_FLOW_SELECT_HERO_MS = 560;
 const DEFAULT_SLEEP_TIMER: SleepTimerMenuState = { status: 'off', endAction: 'pause' };
 const DEFAULT_STOPWATCH: StopwatchSnapshot = { status: 'idle', accumulatedMs: 0, laps: [] };
 const SLEEP_ACTION_ORDER: SleepTimerEndAction[] = ['pause', 'fadePause', 'lock'];
+const ALPHA_JUMP_MIN_ITEMS = 24;
+const ALPHA_JUMP_WINDOW_MS = 320;
+const ALPHA_JUMP_STEP_THRESHOLD = 7;
+const ALPHA_JUMP_HUD_MS = 760;
+
+const tx = (
+  locale: Locale | string | undefined,
+  en: string,
+  zhCN: string,
+  values: Record<string, string | number> = {},
+) => text(locale, { en, 'zh-CN': zhCN }, values);
 
 const findNodeByPath = (root: MenuNode, path: string[]) => {
   let node = root;
@@ -71,10 +96,10 @@ const findNodeByPath = (root: MenuNode, path: string[]) => {
   return node;
 };
 
-const nowPlayingNode: MenuNode = { id: 'now_playing', title: 'Now Playing', type: 'nowPlaying' };
+const nowPlayingNodeForLocale = (locale: Locale): MenuNode => ({ id: 'now_playing', title: t(locale, 'nowPlaying'), type: 'nowPlaying' });
 
 const isDetachedNavigationNode = (node: MenuNode) => (
-  node.id === nowPlayingNode.id ||
+  node.id === 'now_playing' ||
   node.id === 'now_playing_queue' ||
   node.id.startsWith('queue_track_') ||
   node.type === 'textEditor'
@@ -92,17 +117,17 @@ const isMenuLikeNode = (node: MenuNode) => (
   node.type === 'calendarEventDetail'
 );
 
-const localTrackNode = (track: LocalMusicTrack, queue: LocalMusicTrack[], index: number): MenuNode => ({
+const localTrackNode = (track: LocalMusicTrack, queue: LocalMusicTrack[], index: number, locale: Locale): MenuNode => ({
   id: `queue_track_${track.id || index}`,
-  title: track.title || 'Unknown Title',
+  title: track.title || t(locale, 'title'),
   type: 'songDetail',
   previewImage: track.artworkUri,
   localTrack: track,
   localQueue: queue,
   localQueueIndex: index,
   detailLines: [
-    track.artist || 'Unknown Artist',
-    track.album || 'Unknown Album',
+    track.artist || tx(locale, 'Unknown Artist', '未知艺人'),
+    track.album || tx(locale, 'Unknown Album', '未知专辑'),
   ],
 });
 
@@ -158,6 +183,24 @@ const writeJson = (key: string, value: unknown) => {
   window.localStorage.setItem(key, JSON.stringify(value));
 };
 
+const readArray = <T,>(key: string): T[] => {
+  const parsed = readJson<unknown>(key, []);
+  return Array.isArray(parsed) ? parsed as T[] : [];
+};
+
+const readRecord = <T extends Record<string, unknown>>(key: string, fallback: T): T => {
+  const parsed = readJson<unknown>(key, fallback);
+  return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as T : fallback;
+};
+
+const mergeDefaultEbooks = (stored: EbookEntry[]) => {
+  const storedById = new Map(stored.map(ebook => [ebook.id, ebook]));
+  return [
+    ...DEFAULT_EBOOKS.map(ebook => storedById.get(ebook.id) || ebook),
+    ...stored.filter(ebook => !DEFAULT_EBOOKS.some(defaultBook => defaultBook.id === ebook.id)),
+  ];
+};
+
 const readString = (key: string, fallback: string) => {
   if (typeof window === 'undefined') return fallback;
   return window.localStorage.getItem(key) || fallback;
@@ -178,6 +221,10 @@ const writeBoolean = (key: string, value: boolean) => {
   if (typeof window === 'undefined') return;
   window.localStorage.setItem(key, String(value));
 };
+
+const readDeviceMode = (): DeviceMode => (
+  readString(DEVICE_MODE_KEY, 'clickWheel') === 'nano6Touch' ? 'nano6Touch' : 'clickWheel'
+);
 
 const localTrackKey = (track: LocalMusicTrack) => track.id || track.uri;
 
@@ -215,34 +262,167 @@ const isValidDateInput = (value: string) => {
 
 const isValidTimeInput = (value: string) => !value || /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 
+const stripExtension = (name: string) => name.replace(/\.[^.]+$/, '').trim();
+
+const normalizeImportedText = (text: string) => text
+  .replace(/\r\n?/g, '\n')
+  .replace(/\u00a0/g, ' ')
+  .replace(/[ \t]+\n/g, '\n')
+  .replace(/\n{3,}/g, '\n\n')
+  .trim();
+
+const removeGutenbergEnvelope = (text: string) => {
+  let next = text;
+  const startMatch = next.match(/\*{3}\s*START OF THE PROJECT GUTENBERG EBOOK[^\n]*\*{3}/i);
+  if (startMatch?.index !== undefined) {
+    next = next.slice(startMatch.index + startMatch[0].length);
+  }
+  const endMatch = next.match(/\*{3}\s*END OF THE PROJECT GUTENBERG EBOOK[^\n]*\*{3}/i);
+  if (endMatch?.index !== undefined) {
+    next = next.slice(0, endMatch.index);
+  }
+  return normalizeImportedText(next);
+};
+
+const textFromHtmlDocument = (document: Document) => {
+  document.querySelectorAll('script, style, nav, .pg-boilerplate, #pg-header, #pg-machine-header, #pg-footer').forEach(element => element.remove());
+  const footer = document.querySelector('#pg-footer-heading');
+  if (footer) {
+    let current: Element | null = footer;
+    while (current) {
+      const next = current.nextElementSibling;
+      current.remove();
+      current = next;
+    }
+  }
+
+  const body = document.body;
+  if (!body) return '';
+  const blocks: string[] = [];
+
+  body.querySelectorAll('h1,h2,h3,h4,p,blockquote,li').forEach(element => {
+    const text = normalizeImportedText(element.textContent || '');
+    if (!text) return;
+    if (/^\*{3}\s*(START|END) OF THE PROJECT GUTENBERG/i.test(text)) return;
+    if (/^Project Gutenberg/i.test(text)) return;
+    if (/^This eBook is for the use of anyone anywhere/i.test(text)) return;
+    const tag = element.tagName.toLowerCase();
+    blocks.push(tag.startsWith('h') ? `# ${text.replace(/^#+\s*/, '')}` : text);
+  });
+
+  return removeGutenbergEnvelope(blocks.join('\n\n'));
+};
+
+const getOpfPath = (zip: Record<string, Uint8Array>) => {
+  const containerEntry = zip['META-INF/container.xml'];
+  if (!containerEntry) return Object.keys(zip).find(name => name.endsWith('.opf'));
+  const containerXml = strFromU8(containerEntry);
+  const match = containerXml.match(/full-path=["']([^"']+\.opf)["']/i);
+  return match?.[1] || Object.keys(zip).find(name => name.endsWith('.opf'));
+};
+
+const resolveZipPath = (basePath: string, href: string) => {
+  if (/^[a-z]+:/i.test(href)) return href;
+  const baseParts = basePath.split('/');
+  baseParts.pop();
+  href.split('/').forEach(part => {
+    if (!part || part === '.') return;
+    if (part === '..') baseParts.pop();
+    else baseParts.push(part);
+  });
+  return baseParts.join('/');
+};
+
+const parseEpubFile = async (file: File): Promise<ImportedEbook> => {
+  const zip = unzipSync(new Uint8Array(await file.arrayBuffer()));
+  const parser = new DOMParser();
+  const opfPath = getOpfPath(zip);
+  const opfText = opfPath ? strFromU8(zip[opfPath]) : '';
+  const opf = opfText ? parser.parseFromString(opfText, 'application/xml') : undefined;
+  const title = normalizeImportedText(opf?.querySelector('title')?.textContent || stripExtension(file.name));
+  const author = normalizeImportedText(opf?.querySelector('creator')?.textContent || '');
+  const manifest = new Map<string, string>();
+
+  opf?.querySelectorAll('manifest item').forEach(item => {
+    const id = item.getAttribute('id');
+    const href = item.getAttribute('href');
+    if (id && href && opfPath) manifest.set(id, resolveZipPath(opfPath, href));
+  });
+
+  const spinePaths = [...(opf?.querySelectorAll('spine itemref') || [])]
+    .map(item => item.getAttribute('idref') || '')
+    .map(idref => manifest.get(idref))
+    .filter((path): path is string => Boolean(path && zip[path] && /\.(xhtml|html?|xml)$/i.test(path)));
+
+  const htmlPaths = spinePaths.length
+    ? spinePaths
+    : Object.keys(zip).filter(path => /\.(xhtml|html?)$/i.test(path) && !/toc|nav|wrap/i.test(path)).sort();
+
+  const body = removeGutenbergEnvelope(htmlPaths.map(path => {
+    const htmlText = strFromU8(zip[path]);
+    const document = parser.parseFromString(htmlText, 'text/html');
+    return textFromHtmlDocument(document);
+  }).filter(Boolean).join('\n\n'));
+
+  if (!body) throw new Error('No readable text found in this EPUB.');
+
+  return {
+    title,
+    author: author || undefined,
+    body,
+  };
+};
+
+const parseEbookFile = async (file: File): Promise<ImportedEbook> => {
+  const lowerName = file.name.toLowerCase();
+  if (lowerName.endsWith('.epub')) return parseEpubFile(file);
+  if (lowerName.endsWith('.txt') || lowerName.endsWith('.md') || lowerName.endsWith('.markdown')) {
+    const body = removeGutenbergEnvelope(await file.text());
+    if (!body) throw new Error('The selected text file is empty.');
+    return {
+      title: stripExtension(file.name),
+      body,
+    };
+  }
+  throw new Error('Unsupported file type. Choose EPUB, TXT, or Markdown.');
+};
+
 export default function App() {
   const coverFlowSelectTimerRef = useRef<number | null>(null);
   const coverFlowSelectingRef = useRef(false);
+  const alphaJumpTimerRef = useRef<number | null>(null);
+  const alphaJumpStatsRef = useRef({ startedAt: 0, steps: 0 });
   const seekInFlightRef = useRef(false);
   const seekTargetRef = useRef(0);
+  const ebookFileInputRef = useRef<HTMLInputElement | null>(null);
   const [coverFlowIsSelecting, setCoverFlowIsSelecting] = useState(false);
   const [coverFlowIsDragging, setCoverFlowIsDragging] = useState(false);
   const [coverFlowRelease, setCoverFlowRelease] = useState({ id: 0, velocity: 0 });
+  const [alphaJumpKey, setAlphaJumpKey] = useState<string>();
   const [playbackQueue, setPlaybackQueue] = useState<LocalMusicTrack[]>([]);
   const [continuationMode, setContinuationMode] = useState<ContinuationMode>(readContinuationMode);
   const [uiSoundVolume, setUiSoundVolumeState] = useState(readUiSoundVolume);
   const [autoScan, setAutoScan] = useState(readAutoScan);
-  const [contacts, setContacts] = useState<ContactEntry[]>(() => readJson(CONTACTS_KEY, []));
-  const [notes, setNotes] = useState<NoteEntry[]>(() => readJson(NOTES_KEY, []));
-  const [calendarEvents, setCalendarEvents] = useState<CalendarEventEntry[]>(() => readJson(CALENDAR_EVENTS_KEY, []));
+  const [contacts, setContacts] = useState<ContactEntry[]>(() => readArray(CONTACTS_KEY));
+  const [notes, setNotes] = useState<NoteEntry[]>(() => readArray(NOTES_KEY));
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEventEntry[]>(() => readArray(CALENDAR_EVENTS_KEY));
+  const [ebooks, setEbooks] = useState<EbookEntry[]>(() => mergeDefaultEbooks(readArray(EBOOKS_KEY)));
+  const [ebookImportState, setEbookImportState] = useState<{ status?: string; message?: string; importing: boolean }>({ importing: false });
+  const [workouts, setWorkouts] = useState<WorkoutEntry[]>(() => readArray(WORKOUTS_KEY));
   const [noteDraft, setNoteDraft] = useState<NoteEntry | undefined>(() => readJson<NoteEntry | undefined>(NOTE_DRAFT_KEY, undefined));
   const [calendarFocusDate, setCalendarFocusDate] = useState(todayInputValue);
   const [sleepTimer, setSleepTimer] = useState<SleepTimerMenuState>(() => readJson(SLEEP_TIMER_KEY, DEFAULT_SLEEP_TIMER));
   const [stopwatch, setStopwatch] = useState<StopwatchSnapshot>(() => readJson(STOPWATCH_KEY, DEFAULT_STOPWATCH));
-  const [mainMenuEnabled, setMainMenuEnabled] = useState<Record<string, boolean>>(() => readJson(MAIN_MENU_KEY, {}));
-  const [mainMenuOrder, setMainMenuOrder] = useState<string[]>(() => normalizeMainMenuOrder(readJson(MAIN_MENU_ORDER_KEY, [])));
+  const [mainMenuEnabled, setMainMenuEnabled] = useState<Record<string, boolean>>(() => readRecord(MAIN_MENU_KEY, {}));
+  const [mainMenuOrder, setMainMenuOrder] = useState<string[]>(() => normalizeMainMenuOrder(readArray(MAIN_MENU_ORDER_KEY)));
   const [mainMenuDraftOrder, setMainMenuDraftOrder] = useState<string[]>();
   const [mainMenuReorderKey, setMainMenuReorderKey] = useState<string>();
   const [backlightTimer, setBacklightTimer] = useState(() => readString(BACKLIGHT_TIMER_KEY, '1m'));
-  const [audiobooksEnabled, setAudiobooksEnabled] = useState(() => readBoolean(AUDIOBOOKS_KEY, true));
   const [eqPreset, setEqPreset] = useState(() => readString(EQ_KEY, 'Off'));
   const [compilationsEnabled, setCompilationsEnabled] = useState(() => readBoolean(COMPILATIONS_KEY, true));
   const [language, setLanguage] = useState<Locale>(() => normalizeLocale(readString(LANGUAGE_KEY, 'en')));
+  const [deviceMode, setDeviceMode] = useState<DeviceMode>(readDeviceMode);
+  const [nano6Wallpaper, setNano6Wallpaper] = useState(() => readString(NANO6_WALLPAPER_KEY, ''));
   const [screenLocked, setScreenLocked] = useState(false);
   const [unlockArmed, setUnlockArmed] = useState(false);
   const [lastInteractionAt, setLastInteractionAt] = useState(() => Date.now());
@@ -253,6 +433,7 @@ export default function App() {
   const localMusic = useLocalMusic({ autoScan });
   const mediaLibrary = useMediaLibrary();
   const radio = useRadio();
+  const voiceMemos = useVoiceMemos();
   const {
     isPlaying,
     currentSong,
@@ -292,6 +473,15 @@ export default function App() {
     radioPresets: radio.presets,
     radioMessage: radio.message,
     isRadioWorking: radio.isWorking,
+    voiceMemos: voiceMemos.memos,
+    voiceMemoStatus: voiceMemos.status,
+    voiceMemoMessage: voiceMemos.message,
+    isVoiceMemoRecording: voiceMemos.isRecording,
+    ebooks,
+    ebookImportStatus: ebookImportState.status,
+    ebookImportMessage: ebookImportState.message,
+    isEbookImporting: ebookImportState.importing,
+    workouts,
     contacts,
     notes,
     noteDraft,
@@ -303,10 +493,10 @@ export default function App() {
     mainMenuSettingsOrder: mainMenuDraftOrder,
     mainMenuReorderKey,
     backlightTimer,
-    audiobooksEnabled,
     eqPreset,
     compilationsEnabled,
     language,
+    deviceMode,
   }), [
     localMusic.status,
     localMusic.message,
@@ -326,6 +516,13 @@ export default function App() {
     radio.presets,
     radio.message,
     radio.isWorking,
+    voiceMemos.memos,
+    voiceMemos.status,
+    voiceMemos.message,
+    voiceMemos.isRecording,
+    ebooks,
+    ebookImportState,
+    workouts,
     contacts,
     notes,
     noteDraft,
@@ -337,10 +534,10 @@ export default function App() {
     mainMenuDraftOrder,
     mainMenuReorderKey,
     backlightTimer,
-    audiobooksEnabled,
     eqPreset,
     compilationsEnabled,
     language,
+    deviceMode,
   ]);
 
   const [stack, setStack] = useState<StackItem[]>([{ node: rootMenu, cursorIndex: 0 }]);
@@ -416,6 +613,9 @@ export default function App() {
       if (coverFlowSelectTimerRef.current !== null) {
         window.clearTimeout(coverFlowSelectTimerRef.current);
       }
+      if (alphaJumpTimerRef.current !== null) {
+        window.clearTimeout(alphaJumpTimerRef.current);
+      }
     };
   }, []);
 
@@ -431,16 +631,25 @@ export default function App() {
   useEffect(() => { writeJson(CONTACTS_KEY, contacts); }, [contacts]);
   useEffect(() => { writeJson(NOTES_KEY, notes); }, [notes]);
   useEffect(() => { writeJson(CALENDAR_EVENTS_KEY, calendarEvents); }, [calendarEvents]);
+  useEffect(() => { writeJson(EBOOKS_KEY, ebooks); }, [ebooks]);
+  useEffect(() => { writeJson(WORKOUTS_KEY, workouts); }, [workouts]);
   useEffect(() => { writeJson(NOTE_DRAFT_KEY, noteDraft); }, [noteDraft]);
   useEffect(() => { writeJson(SLEEP_TIMER_KEY, sleepTimer); }, [sleepTimer]);
   useEffect(() => { writeJson(STOPWATCH_KEY, stopwatch); }, [stopwatch]);
   useEffect(() => { writeJson(MAIN_MENU_KEY, mainMenuEnabled); }, [mainMenuEnabled]);
   useEffect(() => { writeJson(MAIN_MENU_ORDER_KEY, mainMenuOrder); }, [mainMenuOrder]);
   useEffect(() => { writeString(BACKLIGHT_TIMER_KEY, backlightTimer); }, [backlightTimer]);
-  useEffect(() => { writeBoolean(AUDIOBOOKS_KEY, audiobooksEnabled); }, [audiobooksEnabled]);
   useEffect(() => { writeString(EQ_KEY, eqPreset); }, [eqPreset]);
   useEffect(() => { writeBoolean(COMPILATIONS_KEY, compilationsEnabled); }, [compilationsEnabled]);
   useEffect(() => { writeString(LANGUAGE_KEY, language); }, [language]);
+  useEffect(() => { writeString(DEVICE_MODE_KEY, deviceMode); }, [deviceMode]);
+  useEffect(() => { writeString(NANO6_WALLPAPER_KEY, nano6Wallpaper); }, [nano6Wallpaper]);
+
+  useEffect(() => {
+    ScreenAwake.setKeepAwake({ enabled: backlightTimer === 'Always On' }).catch(error => {
+      console.error('Screen awake update failed', error);
+    });
+  }, [backlightTimer]);
 
   useEffect(() => {
     const computeElapsed = () => (
@@ -531,6 +740,48 @@ export default function App() {
     });
   };
 
+  const showAlphaJumpHud = (key: string) => {
+    setAlphaJumpKey(key);
+    if (alphaJumpTimerRef.current !== null) {
+      window.clearTimeout(alphaJumpTimerRef.current);
+    }
+    alphaJumpTimerRef.current = window.setTimeout(() => {
+      alphaJumpTimerRef.current = null;
+      setAlphaJumpKey(undefined);
+    }, ALPHA_JUMP_HUD_MS);
+  };
+
+  const tryClassicAlphaJump = (steps: number) => {
+    if (!currentNode.alphaSections?.length || (currentNode.children?.length || 0) < ALPHA_JUMP_MIN_ITEMS) return false;
+
+    const now = performance.now();
+    const stats = alphaJumpStatsRef.current;
+    if (now - stats.startedAt > ALPHA_JUMP_WINDOW_MS) {
+      stats.startedAt = now;
+      stats.steps = 0;
+    }
+    stats.steps += Math.abs(steps);
+
+    if (stats.steps < ALPHA_JUMP_STEP_THRESHOLD && Math.abs(steps) < 3) return false;
+
+    const activeSection = findAlphaSectionForIndex(currentNode.alphaSections, cursorIndex) || currentNode.alphaSections[0];
+    const activeSectionIndex = Math.max(0, currentNode.alphaSections.findIndex(section => section.key === activeSection.key));
+    const direction = steps > 0 ? 1 : -1;
+    const nextSection = currentNode.alphaSections[Math.max(0, Math.min(currentNode.alphaSections.length - 1, activeSectionIndex + direction))];
+    if (!nextSection || nextSection.startIndex === cursorIndex) return false;
+
+    showAlphaJumpHud(nextSection.key);
+    setStack(prev => {
+      const nextStack = [...prev];
+      const top = { ...nextStack[nextStack.length - 1] };
+      if (top.node.id !== currentNode.id) return prev;
+      top.cursorIndex = nextSection.startIndex;
+      nextStack[nextStack.length - 1] = top;
+      return nextStack;
+    });
+    return true;
+  };
+
   const setCoverFlowCursorIndex = useCallback((index: number) => {
     setStack(prev => {
       const newStack = [...prev];
@@ -607,9 +858,9 @@ export default function App() {
       );
       const queueNode: MenuNode = {
         id: 'now_playing_queue',
-        title: 'Up Next',
+        title: tx(language, 'Up Next', '下一首列表'),
         type: 'menu',
-        children: activePlaybackQueue.map((track, index) => localTrackNode(track, activePlaybackQueue, index)),
+        children: activePlaybackQueue.map((track, index) => localTrackNode(track, activePlaybackQueue, index, language)),
       };
       const maxIdx = activePlaybackQueue.length - 1;
       const nextIndex = Math.max(0, Math.min(maxIdx, currentQueueIndex + steps));
@@ -631,6 +882,8 @@ export default function App() {
       rotateStackTop(boundedSteps, 'coverFlow');
       return;
     }
+
+    if (tryClassicAlphaJump(steps)) return;
 
     rotateStackTop(steps);
   };
@@ -749,6 +1002,81 @@ export default function App() {
     }, mode === 'create' ? t(language, 'newEvent') : t(language, 'editEvent'));
   };
 
+  const openEbookEditor = (mode: EditorMode, ebookId?: string) => {
+    const ebook = ebookId ? ebooks.find(item => item.id === ebookId) : undefined;
+    if (mode === 'edit' && !ebook) return;
+
+    openTextEditor({
+      kind: 'ebook',
+      mode,
+      id: ebook?.id,
+      fields: {
+        title: ebook?.title || '',
+        name: ebook?.author || '',
+        body: ebook?.body || '',
+      },
+    }, mode === 'create' ? tx(language, 'Paste Book Text', '粘贴图书文本') : tx(language, 'Edit Book', '编辑图书'));
+  };
+
+  const openWorkoutEditor = (mode: EditorMode, workoutId?: string, preset?: Pick<WorkoutEntry, 'title' | 'notes'>) => {
+    const workout = workoutId ? workouts.find(item => item.id === workoutId) : undefined;
+    if (mode === 'edit' && !workout) return;
+
+    openTextEditor({
+      kind: 'workout',
+      mode,
+      id: workout?.id,
+      fields: {
+        title: workout?.title || preset?.title || '',
+        date: workout?.date || todayInputValue(),
+        notes: workout?.notes || preset?.notes || '',
+      },
+    }, mode === 'create' ? tx(language, 'Log Workout', '记录健身') : tx(language, 'Edit Workout', '编辑健身记录'));
+  };
+
+  const updateEbookProgress = useCallback((ebookId: string, progress: number, chapterIndex?: number) => {
+    const safeProgress = Math.max(0, Math.min(1, progress));
+    setEbooks(current => current.map(ebook => (
+      ebook.id === ebookId
+        ? {
+            ...ebook,
+            progress: Math.max(ebook.progress || 0, safeProgress),
+            currentChapterIndex: chapterIndex ?? ebook.currentChapterIndex,
+          }
+        : ebook
+    )));
+  }, []);
+
+  const importEbookFile = async (file: File) => {
+    setEbookImportState({ importing: true, status: 'working', message: tx(language, 'Importing {name}...', '正在导入 {name}...', { name: file.name }) });
+    try {
+      const imported = await parseEbookFile(file);
+      const savedBook: EbookEntry = {
+        id: `ebook_import_${Date.now().toString(36)}`,
+        title: imported.title,
+        author: imported.author,
+        body: imported.body,
+        updatedAt: Date.now(),
+      };
+      setEbooks(current => [savedBook, ...current]);
+      setEbookImportState({
+        importing: false,
+        status: 'success',
+        message: tx(language, 'Imported {name}', '已导入 {name}', { name: savedBook.title }),
+      });
+    } catch (error) {
+      setEbookImportState({
+        importing: false,
+        status: 'error',
+        message: error instanceof Error ? error.message : tx(language, 'Book import failed.', '图书导入失败。'),
+      });
+    }
+  };
+
+  const openEbookFilePicker = () => {
+    ebookFileInputRef.current?.click();
+  };
+
   const saveTextEditor = () => {
     if (!textEditor) return;
 
@@ -797,6 +1125,61 @@ export default function App() {
         textEditor.mode === 'edit'
           ? current.map(contact => contact.id === savedContact.id ? savedContact : contact)
           : [...current, savedContact]
+      ));
+      closeTextEditor();
+      return;
+    }
+
+    if (textEditor.kind === 'ebook') {
+      const title = (textEditor.fields.title || '').trim();
+      const body = (textEditor.fields.body || '').trim();
+      const existingBook = textEditor.id ? ebooks.find(ebook => ebook.id === textEditor.id) : undefined;
+      if (!title || !body) {
+        setTextEditorError(tx(language, 'Book title and body are required.', '图书标题和正文不能为空。'));
+        return;
+      }
+
+      const savedBook: EbookEntry = {
+        id: textEditor.id || newId('ebook'),
+        title,
+        author: (textEditor.fields.name || '').trim(),
+        body,
+        progress: existingBook?.progress,
+        currentChapterIndex: existingBook?.currentChapterIndex,
+        updatedAt: Date.now(),
+      };
+      setEbooks(current => (
+        textEditor.mode === 'edit'
+          ? current.map(ebook => ebook.id === savedBook.id ? savedBook : ebook)
+          : [...current, savedBook]
+      ));
+      closeTextEditor();
+      return;
+    }
+
+    if (textEditor.kind === 'workout') {
+      const title = (textEditor.fields.title || '').trim();
+      const date = (textEditor.fields.date || todayInputValue()).trim();
+      if (!title) {
+        setTextEditorError(tx(language, 'Workout title is required.', '健身标题不能为空。'));
+        return;
+      }
+      if (!isValidDateInput(date)) {
+        setTextEditorError(t(language, 'validDateRequired'));
+        return;
+      }
+
+      const savedWorkout: WorkoutEntry = {
+        id: textEditor.id || newId('workout'),
+        title,
+        date,
+        notes: (textEditor.fields.notes || '').trim(),
+        updatedAt: Date.now(),
+      };
+      setWorkouts(current => (
+        textEditor.mode === 'edit'
+          ? current.map(workout => workout.id === savedWorkout.id ? savedWorkout : workout)
+          : [...current, savedWorkout]
       ));
       closeTextEditor();
       return;
@@ -855,7 +1238,7 @@ export default function App() {
         await playQueue(localMusic.tracks, randomStartIndex(localMusic.tracks.length), { shuffle: true });
         setStack(prev => [
           ...prev,
-          { node: nowPlayingNode, cursorIndex: 0 }
+          { node: nowPlayingNodeForLocale(language), cursorIndex: 0 }
         ]);
         break;
       case 'settings_cycle_click_sound':
@@ -866,6 +1249,11 @@ export default function App() {
             : UI_SOUND_VOLUME_STEPS.findIndex(step => step > currentVolume);
           return UI_SOUND_VOLUME_STEPS[nextIndex >= 0 ? nextIndex : 0];
         });
+        break;
+      case 'settings_cycle_device_mode':
+        setMainMenuReorderKey(undefined);
+        setMainMenuDraftOrder(undefined);
+        setDeviceMode(current => current === 'clickWheel' ? 'nano6Touch' : 'clickWheel');
         break;
       case 'settings_toggle_auto_scan':
         setAutoScan(!autoScan);
@@ -899,6 +1287,57 @@ export default function App() {
       case 'radio_delete_preset':
         if (typeof node.radioFrequency === 'number') {
           radio.deletePreset(node.radioFrequency);
+        }
+        break;
+      case 'voice_memos_refresh':
+        await voiceMemos.refresh();
+        break;
+      case 'voice_memos_toggle_record':
+        await voiceMemos.toggleRecording();
+        break;
+      case 'voice_memos_play':
+        if (node.voiceMemoId) await voiceMemos.play(node.voiceMemoId);
+        break;
+      case 'voice_memos_delete':
+        if (node.voiceMemoId) {
+          await voiceMemos.deleteMemo(node.voiceMemoId);
+          handleMenu();
+        }
+        break;
+      case 'ebook_import':
+        openEbookFilePicker();
+        break;
+      case 'ebook_add':
+        openEbookEditor('create');
+        break;
+      case 'ebook_edit':
+        if (node.ebookId) openEbookEditor('edit', node.ebookId);
+        break;
+      case 'ebook_delete_confirm':
+        if (node.ebookId) {
+          setEbooks(current => current.filter(ebook => ebook.id !== node.ebookId));
+          handleMenu();
+        }
+        break;
+      case 'workout_add':
+        openWorkoutEditor('create');
+        break;
+      case 'workout_add_walk':
+        openWorkoutEditor('create', undefined, { title: tx(language, 'Walk', '步行'), notes: tx(language, 'Duration:\nDistance:\nRoute:', '时长：\n距离：\n路线：') });
+        break;
+      case 'workout_add_run':
+        openWorkoutEditor('create', undefined, { title: tx(language, 'Run', '跑步'), notes: tx(language, 'Duration:\nDistance:\nPace:', '时长：\n距离：\n配速：') });
+        break;
+      case 'workout_add_strength':
+        openWorkoutEditor('create', undefined, { title: tx(language, 'Strength', '力量'), notes: tx(language, 'Focus:\nSets:\nNotes:', '重点：\n组数：\n备注：') });
+        break;
+      case 'workout_edit':
+        if (node.workoutId) openWorkoutEditor('edit', node.workoutId);
+        break;
+      case 'workout_delete':
+        if (node.workoutId) {
+          setWorkouts(current => current.filter(workout => workout.id !== node.workoutId));
+          handleMenu();
         }
         break;
       case 'contact_add':
@@ -983,9 +1422,6 @@ export default function App() {
       case 'settings_cycle_backlight':
         setBacklightTimer(current => nextFromOrder(current, BACKLIGHT_TIMER_ORDER));
         break;
-      case 'settings_toggle_audiobook':
-        setAudiobooksEnabled(current => !current);
-        break;
       case 'settings_cycle_eq':
         setEqPreset(current => {
           const nextPreset = nextFromOrder(current, EQ_ORDER);
@@ -1028,11 +1464,11 @@ export default function App() {
         setContinuationMode('library');
         setMainMenuEnabled({});
         setBacklightTimer('1m');
-        setAudiobooksEnabled(true);
         setEqPreset('Off');
         await localMusic.setEqPreset('Off');
         setCompilationsEnabled(true);
         setLanguage('en');
+        setDeviceMode('clickWheel');
         setNoteDraft(undefined);
         setSleepTimer(DEFAULT_SLEEP_TIMER);
         setStopwatch(DEFAULT_STOPWATCH);
@@ -1071,7 +1507,7 @@ export default function App() {
     setPlaybackQueue(playback.queue);
     playQueue(playback.queue, playback.selectedIndex)
       .then(() => {
-        setStack(prev => [...prev, { node: nowPlayingNode, cursorIndex: 0 }]);
+        setStack(prev => [...prev, { node: nowPlayingNodeForLocale(language), cursorIndex: 0 }]);
       })
       .catch(error => {
         console.error('Local playback failed', error);
@@ -1255,13 +1691,13 @@ export default function App() {
     } else if (selectedChild.id.startsWith('song_')) {
        setStack(prev => [
          ...prev,
-         { node: nowPlayingNode, cursorIndex: 0 }
+         { node: nowPlayingNodeForLocale(language), cursorIndex: 0 }
        ]);
     } else if (selectedChild.type === 'nowPlaying') {
        // Just go to now playing view without changing song
        setStack(prev => [
          ...prev,
-         { node: nowPlayingNode, cursorIndex: 0 }
+         { node: nowPlayingNodeForLocale(language), cursorIndex: 0 }
        ]);
     } else {
        // Push submenu or other screens (clock, calendar, placeholders, etc.)
@@ -1466,8 +1902,161 @@ export default function App() {
     prevTrack();
   };
 
+  const handleTouchActivateChild = (parentNode: MenuNode, selectedChild: MenuNode, selectedIndex: number) => {
+    setLastInteractionAt(Date.now());
+    if (screenLocked && parentNode.type !== 'screenLock') return;
+
+    setStack(prev => {
+      const nextStack = [...prev];
+      const top = { ...nextStack[nextStack.length - 1] };
+      if (top.node.id === parentNode.id) {
+        top.cursorIndex = selectedIndex;
+        nextStack[nextStack.length - 1] = top;
+      }
+      return nextStack;
+    });
+
+    if (selectedChild.action) {
+      runAction(selectedChild).catch(error => {
+        console.error('Touch action failed', error);
+      });
+      return;
+    }
+
+    if (selectedChild.localTrack) {
+      const localTracks = localQueueFromMenu(parentNode);
+      const queue = localTracks.length ? localTracks : [selectedChild.localTrack];
+      const selectedQueueIndex = Math.max(0, queue.findIndex(track => track.id === selectedChild.localTrack?.id));
+      startLocalQueue(parentNode, queue, selectedQueueIndex);
+      return;
+    }
+
+    if (selectedChild.id.startsWith('song_') || selectedChild.type === 'nowPlaying') {
+      setStack(prev => [...prev, { node: nowPlayingNodeForLocale(language), cursorIndex: 0 }]);
+      return;
+    }
+
+    if (selectedChild.type === 'photoDetail') {
+      const mediaQueue = parentNode.children?.filter(child => child.type === 'photoDetail') || [selectedChild];
+      const mediaQueueIndex = Math.max(0, mediaQueue.findIndex(child => child.id === selectedChild.id));
+      setStack(prev => [...prev, {
+        node: {
+          ...selectedChild,
+          mediaQueue,
+          mediaQueueIndex,
+        },
+        cursorIndex: 0,
+      }]);
+      return;
+    }
+
+    setStack(prev => [...prev, { node: selectedChild, cursorIndex: 0 }]);
+  };
+
+  const handleTouchOpenNode = (node: MenuNode) => {
+    setLastInteractionAt(Date.now());
+    if (node.type === 'nowPlaying') {
+      setStack(prev => [...prev, { node: nowPlayingNodeForLocale(language), cursorIndex: 0 }]);
+      return;
+    }
+    const rootIndex = rootMenu.children?.findIndex(child => child.id === node.id) ?? -1;
+    setStack([
+      { node: rootMenu, cursorIndex: Math.max(0, rootIndex) },
+      { node, cursorIndex: 0 },
+    ]);
+  };
+
+  const handleTouchHome = () => {
+    setLastInteractionAt(Date.now());
+    setMainMenuReorderKey(undefined);
+    setMainMenuDraftOrder(undefined);
+    setUnlockArmed(false);
+    setStack([{ node: rootMenu, cursorIndex: 0 }]);
+  };
+
+  const handleCyclePlaybackMode = () => {
+    setLastInteractionAt(Date.now());
+    const currentIndex = Math.max(0, PLAYBACK_MODE_ORDER.indexOf(playbackMode));
+    const nextMode = PLAYBACK_MODE_ORDER[(currentIndex + 1) % PLAYBACK_MODE_ORDER.length];
+    setPlaybackMode(nextMode).catch(error => {
+      console.error('Playback mode update failed', error);
+    });
+  };
+
+  const handleSetNano6Wallpaper = (url: string) => {
+    setLastInteractionAt(Date.now());
+    setNano6Wallpaper(url);
+  };
+
+  if (deviceMode === 'nano6Touch') {
+    return (
+      <>
+        <input
+          ref={ebookFileInputRef}
+          type="file"
+          accept=".epub,.txt,.md,.markdown,application/epub+zip,text/plain,text/markdown"
+          className="hidden"
+          onChange={event => {
+            const file = event.currentTarget.files?.[0];
+            event.currentTarget.value = '';
+            if (file) importEbookFile(file).catch(error => {
+              setEbookImportState({
+                importing: false,
+                status: 'error',
+                message: error instanceof Error ? error.message : tx(language, 'Book import failed.', '图书导入失败。'),
+              });
+            });
+          }}
+        />
+        <Nano6Screen
+          rootMenu={rootMenu}
+          currentNode={currentNode}
+          currentSong={currentSong}
+          progress={progress}
+          playbackMode={playbackMode}
+          isPlaying={isPlaying}
+          screenDimmed={screenDimmed}
+          locale={language}
+          nano6Wallpaper={nano6Wallpaper}
+          onOpenNode={handleTouchOpenNode}
+          onActivateChild={handleTouchActivateChild}
+          onSetWallpaper={handleSetNano6Wallpaper}
+          textEditor={textEditor}
+          onTextEditorChange={updateTextEditorField}
+          onTextEditorSave={saveTextEditor}
+          onTextEditorCancel={closeTextEditor}
+          onEbookProgress={updateEbookProgress}
+          onBack={handleMenu}
+          onHome={handleTouchHome}
+          onPlayPause={handlePlayPause}
+          onNext={handleNext}
+          onPrev={handlePrev}
+          onSeekTo={seekTo}
+          onCyclePlaybackMode={handleCyclePlaybackMode}
+        />
+      </>
+    );
+  }
+
   return (
     <div className="w-screen h-screen bg-black flex items-center justify-center p-0 font-sans overflow-hidden">
+      <input
+        ref={ebookFileInputRef}
+        type="file"
+        accept=".epub,.txt,.md,.markdown,application/epub+zip,text/plain,text/markdown"
+        className="hidden"
+        onChange={event => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = '';
+          if (file) importEbookFile(file).catch(error => {
+            setEbookImportState({
+              importing: false,
+              status: 'error',
+              message: error instanceof Error ? error.message : tx(language, 'Book import failed.', '图书导入失败。'),
+            });
+          });
+        }}
+      />
       <div className="relative w-[min(100vw,100vh)] h-[min(100vw,100vh)] bg-gradient-to-br from-gray-50 to-gray-200 rounded-[56px] shadow-[0_35px_60px_-15px_rgba(0,0,0,0.3)] border-8 border-white px-5 pt-4 pb-3 flex flex-col items-center">
         
         {/* Top Section: Screen */}
@@ -1497,6 +2086,7 @@ export default function App() {
             onTextEditorSave={saveTextEditor}
             onTextEditorCancel={closeTextEditor}
             onCoverFlowSettleTarget={setCoverFlowCursorIndex}
+            alphaJumpKey={alphaJumpKey}
           />
         </div>
 

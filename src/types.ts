@@ -6,7 +6,8 @@ import { SpotifyPlaylist, SpotifyPlaylistTrack, SpotifyShortcut, SpotifyTrack } 
 
 export type ShuffleMode = 'off' | 'songs';
 export type PlaybackMode = 'sequential' | 'shuffle' | 'repeatAll' | 'repeatOne';
-export type EditorKind = 'note' | 'contact' | 'calendarEvent';
+export type DeviceMode = 'clickWheel' | 'nano6Touch';
+export type EditorKind = 'note' | 'contact' | 'calendarEvent' | 'ebook' | 'workout';
 export type EditorMode = 'create' | 'edit';
 export type EditorFieldKey = 'title' | 'body' | 'name' | 'phone' | 'email' | 'date' | 'time' | 'notes';
 export type EditorFields = Partial<Record<EditorFieldKey, string>>;
@@ -21,7 +22,7 @@ export interface TextEditorState {
   error?: string;
 }
 
-export type MenuNodeType = 'menu' | 'coverFlow' | 'nowPlaying' | 'songDetail' | 'videos' | 'videoDetail' | 'photoGrid' | 'photoDetail' | 'photos' | 'podcasts' | 'radioStatus' | 'radioNowPlaying' | 'radioStationList' | 'radioTune' | 'settings' | 'about' | 'clock' | 'calendar' | 'calendarEventList' | 'calendarEventDetail' | 'stopwatch' | 'contactList' | 'contactDetail' | 'noteList' | 'noteDetail' | 'textEditor' | 'screenLock' | 'legal' | 'appleMusicStatus' | 'spotifyStatus' | 'localMusicStatus' | 'placeholder';
+export type MenuNodeType = 'menu' | 'coverFlow' | 'nowPlaying' | 'songDetail' | 'videos' | 'videoDetail' | 'photoGrid' | 'photoDetail' | 'photos' | 'radioStatus' | 'radioNowPlaying' | 'radioStationList' | 'radioTune' | 'settings' | 'about' | 'clock' | 'calendar' | 'calendarEventList' | 'calendarEventDetail' | 'stopwatch' | 'contactList' | 'contactDetail' | 'noteList' | 'noteDetail' | 'ebookReader' | 'textEditor' | 'screenLock' | 'legal' | 'appleMusicStatus' | 'spotifyStatus' | 'localMusicStatus' | 'placeholder';
 
 export type MenuAction =
   | 'apple_music_sign_in'
@@ -35,6 +36,7 @@ export type MenuAction =
   | 'local_toggle_continuation'
   | 'player_shuffle_all'
   | 'settings_cycle_click_sound'
+  | 'settings_cycle_device_mode'
   | 'settings_toggle_auto_scan'
   | 'settings_cycle_playback_mode'
   | 'settings_reset'
@@ -47,6 +49,21 @@ export type MenuAction =
   | 'radio_stop'
   | 'radio_save_preset'
   | 'radio_delete_preset'
+  | 'voice_memos_refresh'
+  | 'voice_memos_toggle_record'
+  | 'voice_memos_play'
+  | 'voice_memos_delete'
+  | 'ebook_import'
+  | 'ebook_add'
+  | 'ebook_edit'
+  | 'ebook_delete'
+  | 'ebook_delete_confirm'
+  | 'workout_add'
+  | 'workout_add_walk'
+  | 'workout_add_run'
+  | 'workout_add_strength'
+  | 'workout_edit'
+  | 'workout_delete'
   | 'contact_add'
   | 'contact_edit'
   | 'contact_delete'
@@ -68,7 +85,6 @@ export type MenuAction =
   | 'editor_cancel'
   | 'settings_toggle_main_menu_item'
   | 'settings_cycle_backlight'
-  | 'settings_toggle_audiobook'
   | 'settings_cycle_eq'
   | 'settings_toggle_compilations'
   | 'settings_cycle_language'
@@ -81,6 +97,7 @@ export interface MenuNode {
   title: string;
   type: MenuNodeType;
   children?: MenuNode[];
+  alphaSections?: AlphaSection[];
   previewIcon?: React.ReactNode;
   previewImage?: string;
   action?: MenuAction;
@@ -92,6 +109,8 @@ export interface MenuNode {
   localQueue?: LocalMusicTrack[];
   localQueueIndex?: number;
   localAlbumKey?: string;
+  mediaQueue?: MenuNode[];
+  mediaQueueIndex?: number;
   mediaItem?: MediaLibraryItem;
   radioFrequency?: number;
   settingKey?: string;
@@ -103,14 +122,28 @@ export interface MenuNode {
   calendarEventDate?: string;
   calendarEventTime?: string;
   sleepTimerDurationMs?: number;
+  sleepTimerStartedAt?: number;
   sleepTimerMode?: SleepTimerMode;
   spotifyUri?: string;
   spotifyPlaylist?: SpotifyPlaylist;
   spotifyPlaylistTrack?: SpotifyPlaylistTrack;
   spotifyShortcut?: SpotifyShortcut;
   spotifyTrack?: SpotifyTrack;
+  voiceMemoId?: string;
+  ebookId?: string;
+  ebookAuthor?: string;
+  ebookBody?: string;
+  ebookChapterIndex?: number;
+  ebookProgress?: number;
+  workoutId?: string;
   statusTone?: 'neutral' | 'success' | 'warning' | 'error';
   isLoading?: boolean;
+}
+
+export interface AlphaSection {
+  key: string;
+  startIndex: number;
+  count: number;
 }
 
 export interface Song {
