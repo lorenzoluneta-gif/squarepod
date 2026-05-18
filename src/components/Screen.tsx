@@ -12,6 +12,10 @@ export type VideoCommand =
   | { id: number; action: 'toggle' }
   | { id: number; action: 'seek'; seconds: number };
 
+export type EbookReaderCommand =
+  | { id: number; action: 'scroll'; steps: number }
+  | { id: number; action: 'chapter'; direction: -1 | 1 };
+
 interface ScreenProps {
   currentNode: MenuNode;
   cursorIndex: number;
@@ -20,6 +24,7 @@ interface ScreenProps {
   progress: number;
   playbackMode: PlaybackMode;
   videoCommand?: VideoCommand;
+  ebookReaderCommand?: EbookReaderCommand;
   stopwatchElapsedMs: number;
   stopwatchRunning: boolean;
   stopwatchLaps: number[];
@@ -40,6 +45,7 @@ interface ScreenProps {
   onTextEditorChange: (field: keyof TextEditorState['fields'], value: string) => void;
   onTextEditorSave: () => void;
   onTextEditorCancel: () => void;
+  onEbookProgress: (ebookId: string, progress: number, chapterIndex?: number) => void;
   onCoverFlowSettleTarget: (index: number) => void;
   alphaJumpKey?: string;
 }
@@ -56,6 +62,7 @@ const COVER_FLOW_RELEASE_VELOCITY_EPSILON = 0.15;
 const COVER_FLOW_VISIBLE_RANGE = 4.25;
 const PHOTO_GRID_COLUMNS = 4;
 const PHOTO_GRID_VISIBLE_ROWS = 2;
+const EBOOK_WHEEL_SCROLL_PX = 46;
 
 const tx = (locale: Locale | string | undefined, en: string, zhCN: string, values: Record<string, string | number> = {}) => (
   text(locale, { en, 'zh-CN': zhCN }, values)
@@ -92,6 +99,170 @@ const resolveNativeMediaSrc = (sourceUrl?: string) => {
   return sourceUrl;
 };
 
+interface ClassicEbookChapter {
+  title: string;
+  body: string;
+  startRatio: number;
+}
+
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+const splitClassicEbookChapters = (body: string, locale: Locale): ClassicEbookChapter[] => {
+  const lines = body.split(/\r?\n/);
+  const chapters: Array<{ title: string; lines: string[]; startLine: number }> = [];
+  let current: { title: string; lines: string[]; startLine: number } | undefined;
+
+  lines.forEach((line, index) => {
+    const heading = line.match(/^\s{0,3}#{1,3}\s+(.+?)\s*$/);
+    if (heading) {
+      if (current) chapters.push(current);
+      current = { title: heading[1], lines: [], startLine: index };
+      return;
+    }
+    if (!current) current = { title: tx(locale, 'Start', '开始'), lines: [], startLine: 0 };
+    current.lines.push(line);
+  });
+
+  if (current) chapters.push(current);
+
+  if (chapters.length <= 1) {
+    const paragraphs = body.split(/\n\s*\n/).map(part => part.trim()).filter(Boolean);
+    if (paragraphs.length <= 3) return [{ title: tx(locale, 'Start', '开始'), body, startRatio: 0 }];
+    const chunkSize = Math.ceil(paragraphs.length / Math.min(6, Math.ceil(paragraphs.length / 3)));
+    return Array.from({ length: Math.ceil(paragraphs.length / chunkSize) }, (_, index) => {
+      const start = index * chunkSize;
+      return {
+        title: tx(locale, 'Part {count}', '第 {count} 部分', { count: index + 1 }),
+        body: paragraphs.slice(start, start + chunkSize).join('\n\n'),
+        startRatio: start / Math.max(1, paragraphs.length),
+      };
+    });
+  }
+
+  return chapters.map(chapter => ({
+    title: chapter.title,
+    body: chapter.lines.join('\n').trim(),
+    startRatio: chapter.startLine / Math.max(1, lines.length),
+  }));
+};
+
+function ClassicEbookReader({
+  node,
+  command,
+  locale,
+  onEbookProgress,
+}: {
+  node: MenuNode;
+  command?: EbookReaderCommand;
+  locale: Locale;
+  onEbookProgress: ScreenProps['onEbookProgress'];
+}) {
+  const body = node.ebookBody || '';
+  const chapters = React.useMemo(() => splitClassicEbookChapters(body, locale), [body, locale]);
+  const initialChapter = React.useMemo(() => {
+    if (typeof node.ebookChapterIndex === 'number') return clamp(node.ebookChapterIndex, 0, Math.max(0, chapters.length - 1));
+    const progress = node.ebookProgress || 0;
+    const index = chapters.findIndex((chapter, chapterIndex) => {
+      const next = chapters[chapterIndex + 1];
+      return progress >= chapter.startRatio && (!next || progress < next.startRatio);
+    });
+    return Math.max(0, index);
+  }, [chapters, node.ebookChapterIndex, node.ebookProgress]);
+  const [chapterIndex, setChapterIndex] = React.useState(initialChapter);
+  const [readProgress, setReadProgress] = React.useState(node.ebookProgress || 0);
+  const scrollerRef = React.useRef<HTMLDivElement | null>(null);
+  const saveTimerRef = React.useRef<number>();
+  const lastCommandIdRef = React.useRef(command?.id ?? 0);
+  const activeChapter = chapters[chapterIndex] || chapters[0];
+  const chapterProgressBase = activeChapter?.startRatio || 0;
+  const nextChapterStart = chapters[chapterIndex + 1]?.startRatio ?? 1;
+
+  const saveProgress = React.useCallback((progressValue: number, nextChapterIndex = chapterIndex) => {
+    if (!node.ebookId) return;
+    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = window.setTimeout(() => {
+      onEbookProgress(node.ebookId as string, progressValue, nextChapterIndex);
+    }, 140);
+  }, [chapterIndex, node.ebookId, onEbookProgress]);
+
+  const updateProgressFromScroll = React.useCallback(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    const scrollable = Math.max(1, scroller.scrollHeight - scroller.clientHeight);
+    const chapterRatio = Math.max(0, Math.min(1, scroller.scrollTop / scrollable));
+    const progressValue = chapterProgressBase + (nextChapterStart - chapterProgressBase) * chapterRatio;
+    setReadProgress(progressValue);
+    saveProgress(progressValue);
+  }, [chapterProgressBase, nextChapterStart, saveProgress]);
+
+  React.useEffect(() => {
+    setChapterIndex(initialChapter);
+  }, [initialChapter, node.id]);
+
+  React.useEffect(() => () => {
+    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+  }, []);
+
+  React.useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    scroller.scrollTop = 0;
+    setReadProgress(chapterProgressBase);
+    if (node.ebookId) onEbookProgress(node.ebookId, chapterProgressBase, chapterIndex);
+  }, [chapterIndex, chapterProgressBase, node.ebookId, onEbookProgress]);
+
+  React.useEffect(() => {
+    if (!command || command.id === lastCommandIdRef.current) return;
+    lastCommandIdRef.current = command.id;
+
+    if (command.action === 'chapter') {
+      setChapterIndex(current => clamp(current + command.direction, 0, Math.max(0, chapters.length - 1)));
+      return;
+    }
+
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    scroller.scrollBy({ top: command.steps * EBOOK_WHEEL_SCROLL_PX, behavior: 'smooth' });
+  }, [chapters.length, command]);
+
+  if (!body.trim()) {
+    return (
+      <div className="flex-1 bg-[#f3efe3] px-7 flex flex-col items-center justify-center text-center">
+        <svg className="h-10 w-10 text-[#8b7d61]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+          <path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z" />
+        </svg>
+        <div className="mt-3 text-sm font-black leading-tight text-neutral-900">{tx(locale, 'No readable text', '没有可阅读文本')}</div>
+        <div className="mt-2 text-[11px] font-bold leading-tight text-neutral-600">{tx(locale, 'Edit this book and paste plain text first.', '请先编辑图书并粘贴纯文本。')}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 bg-[#f3efe3] text-[#211f1a] flex flex-col overflow-hidden">
+      <div className="h-[27px] shrink-0 border-b border-[#d7cdb9] bg-[#ebe1cd] px-4 flex items-center gap-3">
+        <div className="min-w-0 flex-1 truncate text-[11px] font-black leading-none">{activeChapter?.title || node.title}</div>
+        <div className="shrink-0 text-[9px] font-black tabular-nums leading-none text-[#7a6d57]">{Math.round(readProgress * 100)}%</div>
+        <div className="shrink-0 text-[9px] font-black tabular-nums leading-none text-[#7a6d57]">{chapterIndex + 1}/{chapters.length}</div>
+      </div>
+      <div
+        ref={scrollerRef}
+        className="min-h-0 flex-1 overflow-y-auto px-5 py-4 [scrollbar-width:none]"
+        onScroll={updateProgressFromScroll}
+      >
+        <div className="mx-auto max-w-[360px] whitespace-pre-wrap text-[13px] font-semibold leading-[1.55]">
+          {activeChapter?.body || body.replace(/^\s{0,3}#{1,3}\s+/gm, '')}
+        </div>
+      </div>
+      <div className="h-[20px] shrink-0 border-t border-[#d7cdb9] bg-[#ebe1cd] px-4 flex items-center justify-between text-[8px] font-black uppercase leading-none text-[#7a6d57]">
+        <span>{tx(locale, 'Wheel scroll', '滚轮滚动')}</span>
+        <span>{tx(locale, 'Prev/Next chapter', '上一章/下一章')}</span>
+        <span>{tx(locale, 'Menu back', 'Menu 返回')}</span>
+      </div>
+    </div>
+  );
+}
+
 export function Screen({
   currentNode,
   cursorIndex,
@@ -100,6 +271,7 @@ export function Screen({
   progress,
   playbackMode,
   videoCommand,
+  ebookReaderCommand,
   stopwatchElapsedMs,
   stopwatchRunning,
   stopwatchLaps,
@@ -116,6 +288,7 @@ export function Screen({
   onTextEditorChange,
   onTextEditorSave,
   onTextEditorCancel,
+  onEbookProgress,
   onCoverFlowSettleTarget,
   alphaJumpKey,
 }: ScreenProps) {
@@ -1419,6 +1592,15 @@ export function Screen({
       case 'contactDetail': return renderDetailLinesScreen();
       case 'noteList': return renderMenu();
       case 'noteDetail': return renderDetailLinesScreen();
+      case 'ebookReader':
+        return (
+          <ClassicEbookReader
+            node={currentNode}
+            command={ebookReaderCommand}
+            locale={locale}
+            onEbookProgress={onEbookProgress}
+          />
+        );
       case 'textEditor': return renderTextEditor();
       case 'screenLock': return renderScreenLock();
       case 'legal': return renderDetailLinesScreen();

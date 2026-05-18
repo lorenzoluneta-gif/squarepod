@@ -9,7 +9,7 @@ import { useVoiceMemos } from './useVoiceMemos';
 import { LocalMusicTrack } from './native/localMusic';
 import { ScreenAwake } from './native/screenAwake';
 import { ClickWheel } from './components/ClickWheel';
-import { Screen, type VideoCommand } from './components/Screen';
+import { Screen, type EbookReaderCommand, type VideoCommand } from './components/Screen';
 import { Nano6Screen } from './components/Nano6Screen';
 import type { RotateEndMeta } from './useWheel';
 import { setUiSoundVolume } from './audio/uiSounds';
@@ -25,6 +25,9 @@ type ContinuationMode = 'album' | 'library';
 type VideoCommandInput =
   | { action: 'toggle' }
   | { action: 'seek'; seconds: number };
+type EbookReaderCommandInput =
+  | { action: 'scroll'; steps: number }
+  | { action: 'chapter'; direction: -1 | 1 };
 
 interface StopwatchSnapshot {
   status: 'idle' | 'running' | 'paused';
@@ -430,6 +433,7 @@ export default function App() {
   const [textEditor, setTextEditor] = useState<TextEditorState>();
   const [stopwatchElapsedMs, setStopwatchElapsedMs] = useState(0);
   const [videoCommand, setVideoCommand] = useState<VideoCommand>();
+  const [ebookReaderCommand, setEbookReaderCommand] = useState<EbookReaderCommand>();
   const localMusic = useLocalMusic({ autoScan });
   const mediaLibrary = useMediaLibrary();
   const radio = useRadio();
@@ -865,6 +869,11 @@ export default function App() {
       const maxIdx = activePlaybackQueue.length - 1;
       const nextIndex = Math.max(0, Math.min(maxIdx, currentQueueIndex + steps));
       setStack(prev => [...prev, { node: queueNode, cursorIndex: nextIndex }]);
+      return;
+    }
+
+    if (currentNode.type === 'ebookReader' && steps !== 0) {
+      sendEbookReaderCommand({ action: 'scroll', steps });
       return;
     }
 
@@ -1521,6 +1530,13 @@ export default function App() {
     }));
   };
 
+  const sendEbookReaderCommand = (command: EbookReaderCommandInput) => {
+    setEbookReaderCommand(current => ({
+      id: (current?.id || 0) + 1,
+      ...command,
+    }));
+  };
+
   const stopwatchElapsedNow = (snapshot = stopwatch) => (
     snapshot.status === 'running' && snapshot.startedAt
       ? snapshot.accumulatedMs + Math.max(0, Date.now() - snapshot.startedAt)
@@ -1857,6 +1873,11 @@ export default function App() {
       return;
     }
 
+    if (currentNode.type === 'ebookReader') {
+      sendEbookReaderCommand({ action: 'chapter', direction: 1 });
+      return;
+    }
+
     if (currentNode.type === 'videoDetail') return;
 
     nextTrack();
@@ -1894,6 +1915,11 @@ export default function App() {
       radio.seekDown().catch(error => {
         console.error('Radio seek failed', error);
       });
+      return;
+    }
+
+    if (currentNode.type === 'ebookReader') {
+      sendEbookReaderCommand({ action: 'chapter', direction: -1 });
       return;
     }
 
@@ -2069,6 +2095,7 @@ export default function App() {
             progress={progress} 
             playbackMode={playbackMode}
             videoCommand={videoCommand}
+            ebookReaderCommand={ebookReaderCommand}
             stopwatchElapsedMs={stopwatchElapsedMs}
             stopwatchRunning={stopwatch.status === 'running'}
             stopwatchLaps={stopwatch.laps}
@@ -2085,6 +2112,7 @@ export default function App() {
             onTextEditorChange={updateTextEditorField}
             onTextEditorSave={saveTextEditor}
             onTextEditorCancel={closeTextEditor}
+            onEbookProgress={updateEbookProgress}
             onCoverFlowSettleTarget={setCoverFlowCursorIndex}
             alphaJumpKey={alphaJumpKey}
           />
