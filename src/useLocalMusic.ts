@@ -7,6 +7,7 @@ export type LocalMusicStatus = 'idle' | 'working' | 'ready' | 'needsPermission' 
 
 const CACHE_KEY = 'squarepod.localMusicLibrary.v1';
 const FALLBACK_COVER = 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&q=80&w=400';
+const WEB_PREVIEW_SEED_PATH = '/dev-local-music-seed.json';
 
 const readCachedTracks = () => {
   if (typeof window === 'undefined') return [];
@@ -21,6 +22,11 @@ const readCachedTracks = () => {
 const writeCachedTracks = (tracks: LocalMusicTrack[]) => {
   if (typeof window === 'undefined') return;
   window.localStorage.setItem(CACHE_KEY, JSON.stringify(tracks));
+};
+
+const isLocalPreviewHost = () => {
+  if (typeof window === 'undefined') return false;
+  return ['localhost', '127.0.0.1', '0.0.0.0'].includes(window.location.hostname);
 };
 
 const trackToSong = (track?: LocalMusicTrack): Song | undefined => {
@@ -67,9 +73,46 @@ export function useLocalMusic({ autoScan = true }: UseLocalMusicOptions = {}) {
 
   useEffect(() => {
     if (!isAndroid) {
-      setStatus('error');
-      setMessage('Local music playback is implemented in the Android app.');
-      return;
+      let cancelled = false;
+      const cachedTracks = readCachedTracks();
+
+      const applySeedLibrary = (nextTracks: LocalMusicTrack[], nextDirectory = '') => {
+        if (cancelled) return;
+        setTracks(nextTracks);
+        setMusicDirectory(nextDirectory);
+        writeCachedTracks(nextTracks);
+        setStatus(nextTracks.length ? 'success' : 'error');
+        setMessage(nextTracks.length
+          ? `Loaded ${nextTracks.length} local songs for web preview${nextDirectory ? ` from ${nextDirectory}` : ''}.`
+          : 'Local music playback is implemented in the Android app.');
+      };
+
+      if (isLocalPreviewHost()) {
+        fetch(WEB_PREVIEW_SEED_PATH, { cache: 'no-store' })
+          .then(async response => {
+            if (!response.ok) throw new Error(`Seed request failed: ${response.status}`);
+            const library = await response.json() as { tracks?: LocalMusicTrack[]; musicDirectory?: string };
+            applySeedLibrary(Array.isArray(library.tracks) ? library.tracks : [], library.musicDirectory || '');
+          })
+          .catch(() => {
+            if (cachedTracks.length) {
+              applySeedLibrary(cachedTracks);
+              return;
+            }
+            if (cancelled) return;
+            setStatus('error');
+            setMessage('Local music playback is implemented in the Android app.');
+          });
+      } else if (cachedTracks.length) {
+        applySeedLibrary(cachedTracks);
+      } else {
+        setStatus('error');
+        setMessage('Local music playback is implemented in the Android app.');
+      }
+
+      return () => {
+        cancelled = true;
+      };
     }
 
     let disposed = false;

@@ -1,0 +1,245 @@
+{
+  "tracks": [
+    {
+      "id": "web-seed-18ca8fe",
+      "uri": "file:///Users/gigass/Music/QQ音乐/2NE1 (투애니 원)-Kiss (Live).ogg",
+      "title": "Kiss (Live)",
+      "artist": "2NE1 (투애니 원)",
+      "album": "Kiss (Live)",
+      "duration": 206,
+      "trackNumber": 1,
+      "artworkUri": "data:image/svg+xml;charset=UTF-8,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20300%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23e76f51%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23f4a261%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Crect%20width%3D%22300%22%20height%3D%22300%22%20rx%3D%2218%22%20fill%3D%22url(%23g)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2258%22%20r%3D%2240%22%20fill%3D%22rgba(255%2C255%2C255%2C0.14)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2274%22%20cy%3D%22242%22%20r%3D%2262%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%0A%20%20%3Ctext%20x%3D%2226%22%20y%3D%22198%22%20fill%3D%22rgba(255%2C255%2C255%2C0.94)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3EKiss%20(Live)%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%22232%22%20fill%3D%22rgba(255%2C255%2C255%2C0.78)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2216%22%20font-weight%3D%22600%22%3E2NE1%20(%E1%84%90%E1%85%AE%E1%84%8B%E1%85%A2%E1%84%82%E1%85%B5%20%E1%84%8B%E1%85%AF%E1%86%AB)%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%2244%22%20fill%3D%22rgba(255%2C255%2C255%2C0.56)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2212%22%20font-weight%3D%22700%22%20letter-spacing%3D%221.5%22%3EQQ%20MUSIC%20IMPORT%3C%2Ftext%3E%0A%3C%2Fsvg%3E"
+    },
+    {
+      "id": "web-seed-3jyvf5",
+      "uri": "file:///Users/gigass/Music/QQ音乐/陈焕明-天空之城 (Inst.).ogg",
+      "title": "天空之城 (Inst.)",
+      "artist": "陈焕明",
+      "album": "天空之城 (Inst.)",
+      "duration": 280,
+      "trackNumber": 1,
+      "artworkUri": "data:image/svg+xml;charset=UTF-8,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20300%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%236a4c93%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%238ac926%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Crect%20width%3D%22300%22%20height%3D%22300%22%20rx%3D%2218%22%20fill%3D%22url(%23g)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2258%22%20r%3D%2240%22%20fill%3D%22rgba(255%2C255%2C255%2C0.14)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2274%22%20cy%3D%22242%22%20r%3D%2262%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%0A%20%20%3Ctext%20x%3D%2226%22%20y%3D%22198%22%20fill%3D%22rgba(255%2C255%2C255%2C0.94)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3E%E5%A4%A9%E7%A9%BA%E4%B9%8B%E5%9F%8E%20(Inst.)%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%22232%22%20fill%3D%22rgba(255%2C255%2C255%2C0.78)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2216%22%20font-weight%3D%22600%22%3E%E9%99%88%E7%84%95%E6%98%8E%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%2244%22%20fill%3D%22rgba(255%2C255%2C255%2C0.56)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2212%22%20font-weight%3D%22700%22%20letter-spacing%3D%221.5%22%3EQQ%20MUSIC%20IMPORT%3C%2Ftext%3E%0A%3C%2Fsvg%3E"
+    },
+    {
+      "id": "web-seed-13c9e88",
+      "uri": "file:///Users/gigass/Music/QQ音乐/封茗囧菌,双笙 (陈元汐)-We Don't Talk Anymore.ogg",
+      "title": "We Don't Talk Anymore",
+      "artist": "封茗囧菌,双笙 (陈元汐)",
+      "album": "We Don't Talk Anymore",
+      "duration": 214,
+      "trackNumber": 1,
+      "artworkUri": "data:image/svg+xml;charset=UTF-8,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20300%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%231d3557%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23457b9d%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Crect%20width%3D%22300%22%20height%3D%22300%22%20rx%3D%2218%22%20fill%3D%22url(%23g)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2258%22%20r%3D%2240%22%20fill%3D%22rgba(255%2C255%2C255%2C0.14)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2274%22%20cy%3D%22242%22%20r%3D%2262%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%0A%20%20%3Ctext%20x%3D%2226%22%20y%3D%22198%22%20fill%3D%22rgba(255%2C255%2C255%2C0.94)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3EWe%20Don't%20Talk%20Anymore%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%22232%22%20fill%3D%22rgba(255%2C255%2C255%2C0.78)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2216%22%20font-weight%3D%22600%22%3E%E5%B0%81%E8%8C%97%E5%9B%A7%E8%8F%8C%2C%E5%8F%8C%E7%AC%99%20(%E9%99%88%E5%85%83%E6%B1%90)%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%2244%22%20fill%3D%22rgba(255%2C255%2C255%2C0.56)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2212%22%20font-weight%3D%22700%22%20letter-spacing%3D%221.5%22%3EQQ%20MUSIC%20IMPORT%3C%2Ftext%3E%0A%3C%2Fsvg%3E"
+    },
+    {
+      "id": "web-seed-prj89g",
+      "uri": "file:///Users/gigass/Music/QQ音乐/冯提莫-刚好遇见你.ogg",
+      "title": "刚好遇见你",
+      "artist": "冯提莫",
+      "album": "刚好遇见你",
+      "duration": 202,
+      "trackNumber": 1,
+      "artworkUri": "data:image/svg+xml;charset=UTF-8,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20300%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%238338ec%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%233a86ff%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Crect%20width%3D%22300%22%20height%3D%22300%22%20rx%3D%2218%22%20fill%3D%22url(%23g)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2258%22%20r%3D%2240%22%20fill%3D%22rgba(255%2C255%2C255%2C0.14)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2274%22%20cy%3D%22242%22%20r%3D%2262%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%0A%20%20%3Ctext%20x%3D%2226%22%20y%3D%22198%22%20fill%3D%22rgba(255%2C255%2C255%2C0.94)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3E%E5%88%9A%E5%A5%BD%E9%81%87%E8%A7%81%E4%BD%A0%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%22232%22%20fill%3D%22rgba(255%2C255%2C255%2C0.78)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2216%22%20font-weight%3D%22600%22%3E%E5%86%AF%E6%8F%90%E8%8E%AB%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%2244%22%20fill%3D%22rgba(255%2C255%2C255%2C0.56)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2212%22%20font-weight%3D%22700%22%20letter-spacing%3D%221.5%22%3EQQ%20MUSIC%20IMPORT%3C%2Ftext%3E%0A%3C%2Fsvg%3E"
+    },
+    {
+      "id": "web-seed-1gjkvtu",
+      "uri": "file:///Users/gigass/Music/QQ音乐/舒淇-一生所爱.ogg",
+      "title": "一生所爱",
+      "artist": "舒淇",
+      "album": "一生所爱",
+      "duration": 193,
+      "trackNumber": 1,
+      "artworkUri": "data:image/svg+xml;charset=UTF-8,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20300%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23e76f51%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23f4a261%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Crect%20width%3D%22300%22%20height%3D%22300%22%20rx%3D%2218%22%20fill%3D%22url(%23g)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2258%22%20r%3D%2240%22%20fill%3D%22rgba(255%2C255%2C255%2C0.14)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2274%22%20cy%3D%22242%22%20r%3D%2262%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%0A%20%20%3Ctext%20x%3D%2226%22%20y%3D%22198%22%20fill%3D%22rgba(255%2C255%2C255%2C0.94)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3E%E4%B8%80%E7%94%9F%E6%89%80%E7%88%B1%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%22232%22%20fill%3D%22rgba(255%2C255%2C255%2C0.78)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2216%22%20font-weight%3D%22600%22%3E%E8%88%92%E6%B7%87%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%2244%22%20fill%3D%22rgba(255%2C255%2C255%2C0.56)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2212%22%20font-weight%3D%22700%22%20letter-spacing%3D%221.5%22%3EQQ%20MUSIC%20IMPORT%3C%2Ftext%3E%0A%3C%2Fsvg%3E"
+    },
+    {
+      "id": "web-seed-2yw2t7",
+      "uri": "file:///Users/gigass/Music/QQ音乐/双笙 (陈元汐)-达拉崩吧.ogg",
+      "title": "达拉崩吧",
+      "artist": "双笙 (陈元汐)",
+      "album": "达拉崩吧",
+      "duration": 208,
+      "trackNumber": 1,
+      "artworkUri": "data:image/svg+xml;charset=UTF-8,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20300%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23264653%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%232a9d8f%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Crect%20width%3D%22300%22%20height%3D%22300%22%20rx%3D%2218%22%20fill%3D%22url(%23g)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2258%22%20r%3D%2240%22%20fill%3D%22rgba(255%2C255%2C255%2C0.14)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2274%22%20cy%3D%22242%22%20r%3D%2262%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%0A%20%20%3Ctext%20x%3D%2226%22%20y%3D%22198%22%20fill%3D%22rgba(255%2C255%2C255%2C0.94)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3E%E8%BE%BE%E6%8B%89%E5%B4%A9%E5%90%A7%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%22232%22%20fill%3D%22rgba(255%2C255%2C255%2C0.78)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2216%22%20font-weight%3D%22600%22%3E%E5%8F%8C%E7%AC%99%20(%E9%99%88%E5%85%83%E6%B1%90)%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%2244%22%20fill%3D%22rgba(255%2C255%2C255%2C0.56)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2212%22%20font-weight%3D%22700%22%20letter-spacing%3D%221.5%22%3EQQ%20MUSIC%20IMPORT%3C%2Ftext%3E%0A%3C%2Fsvg%3E"
+    },
+    {
+      "id": "web-seed-1gj0j0u",
+      "uri": "file:///Users/gigass/Music/QQ音乐/双笙 (陈元汐)-锦鲤抄.ogg",
+      "title": "锦鲤抄",
+      "artist": "双笙 (陈元汐)",
+      "album": "锦鲤抄",
+      "duration": 245,
+      "trackNumber": 1,
+      "artworkUri": "data:image/svg+xml;charset=UTF-8,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20300%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%233d405b%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%2381b29a%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Crect%20width%3D%22300%22%20height%3D%22300%22%20rx%3D%2218%22%20fill%3D%22url(%23g)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2258%22%20r%3D%2240%22%20fill%3D%22rgba(255%2C255%2C255%2C0.14)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2274%22%20cy%3D%22242%22%20r%3D%2262%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%0A%20%20%3Ctext%20x%3D%2226%22%20y%3D%22198%22%20fill%3D%22rgba(255%2C255%2C255%2C0.94)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3E%E9%94%A6%E9%B2%A4%E6%8A%84%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%22232%22%20fill%3D%22rgba(255%2C255%2C255%2C0.78)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2216%22%20font-weight%3D%22600%22%3E%E5%8F%8C%E7%AC%99%20(%E9%99%88%E5%85%83%E6%B1%90)%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%2244%22%20fill%3D%22rgba(255%2C255%2C255%2C0.56)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2212%22%20font-weight%3D%22700%22%20letter-spacing%3D%221.5%22%3EQQ%20MUSIC%20IMPORT%3C%2Ftext%3E%0A%3C%2Fsvg%3E"
+    },
+    {
+      "id": "web-seed-176t842",
+      "uri": "file:///Users/gigass/Music/QQ音乐/小F4-简单爱.ogg",
+      "title": "简单爱",
+      "artist": "小F4",
+      "album": "简单爱",
+      "duration": 281,
+      "trackNumber": 1,
+      "artworkUri": "data:image/svg+xml;charset=UTF-8,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20300%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23e76f51%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23f4a261%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Crect%20width%3D%22300%22%20height%3D%22300%22%20rx%3D%2218%22%20fill%3D%22url(%23g)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2258%22%20r%3D%2240%22%20fill%3D%22rgba(255%2C255%2C255%2C0.14)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2274%22%20cy%3D%22242%22%20r%3D%2262%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%0A%20%20%3Ctext%20x%3D%2226%22%20y%3D%22198%22%20fill%3D%22rgba(255%2C255%2C255%2C0.94)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3E%E7%AE%80%E5%8D%95%E7%88%B1%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%22232%22%20fill%3D%22rgba(255%2C255%2C255%2C0.78)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2216%22%20font-weight%3D%22600%22%3E%E5%B0%8FF4%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%2244%22%20fill%3D%22rgba(255%2C255%2C255%2C0.56)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2212%22%20font-weight%3D%22700%22%20letter-spacing%3D%221.5%22%3EQQ%20MUSIC%20IMPORT%3C%2Ftext%3E%0A%3C%2Fsvg%3E"
+    },
+    {
+      "id": "web-seed-kxeew2",
+      "uri": "file:///Users/gigass/Music/QQ音乐/増田俊郎 (ますだ としお)-揺れ動く心 (动摇的心) (Inst.).ogg",
+      "title": "揺れ動く心 (动摇的心) (Inst.)",
+      "artist": "増田俊郎 (ますだ としお)",
+      "album": "揺れ動く心 (动摇的心) (Inst.)",
+      "duration": 113,
+      "trackNumber": 1,
+      "artworkUri": "data:image/svg+xml;charset=UTF-8,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20300%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23e76f51%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23f4a261%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Crect%20width%3D%22300%22%20height%3D%22300%22%20rx%3D%2218%22%20fill%3D%22url(%23g)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2258%22%20r%3D%2240%22%20fill%3D%22rgba(255%2C255%2C255%2C0.14)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2274%22%20cy%3D%22242%22%20r%3D%2262%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%0A%20%20%3Ctext%20x%3D%2226%22%20y%3D%22198%22%20fill%3D%22rgba(255%2C255%2C255%2C0.94)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3E%E6%8F%BA%E3%82%8C%E5%8B%95%E3%81%8F%E5%BF%83%20(%E5%8A%A8%E6%91%87%E7%9A%84%E5%BF%83)%20(Inst.)%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%22232%22%20fill%3D%22rgba(255%2C255%2C255%2C0.78)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2216%22%20font-weight%3D%22600%22%3E%E5%A2%97%E7%94%B0%E4%BF%8A%E9%83%8E%20(%E3%81%BE%E3%81%99%E3%81%9F%E3%82%99%20%E3%81%A8%E3%81%97%E3%81%8A)%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%2244%22%20fill%3D%22rgba(255%2C255%2C255%2C0.56)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2212%22%20font-weight%3D%22700%22%20letter-spacing%3D%221.5%22%3EQQ%20MUSIC%20IMPORT%3C%2Ftext%3E%0A%3C%2Fsvg%3E"
+    },
+    {
+      "id": "web-seed-ammnio",
+      "uri": "file:///Users/gigass/Music/QQ音乐/张一山-那就这样吧 (Live).ogg",
+      "title": "那就这样吧 (Live)",
+      "artist": "张一山",
+      "album": "那就这样吧 (Live)",
+      "duration": 214,
+      "trackNumber": 1,
+      "artworkUri": "data:image/svg+xml;charset=UTF-8,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20300%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%231d3557%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23457b9d%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Crect%20width%3D%22300%22%20height%3D%22300%22%20rx%3D%2218%22%20fill%3D%22url(%23g)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2258%22%20r%3D%2240%22%20fill%3D%22rgba(255%2C255%2C255%2C0.14)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2274%22%20cy%3D%22242%22%20r%3D%2262%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%0A%20%20%3Ctext%20x%3D%2226%22%20y%3D%22198%22%20fill%3D%22rgba(255%2C255%2C255%2C0.94)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3E%E9%82%A3%E5%B0%B1%E8%BF%99%E6%A0%B7%E5%90%A7%20(Live)%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%22232%22%20fill%3D%22rgba(255%2C255%2C255%2C0.78)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2216%22%20font-weight%3D%22600%22%3E%E5%BC%A0%E4%B8%80%E5%B1%B1%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%2244%22%20fill%3D%22rgba(255%2C255%2C255%2C0.56)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2212%22%20font-weight%3D%22700%22%20letter-spacing%3D%221.5%22%3EQQ%20MUSIC%20IMPORT%3C%2Ftext%3E%0A%3C%2Fsvg%3E"
+    },
+    {
+      "id": "web-seed-ndjfs2",
+      "uri": "file:///Users/gigass/Music/QQ音乐/BIGBANG (빅뱅)-EMOTION.ogg",
+      "title": "EMOTION",
+      "artist": "BIGBANG (빅뱅)",
+      "album": "EMOTION",
+      "duration": 199,
+      "trackNumber": 1,
+      "artworkUri": "data:image/svg+xml;charset=UTF-8,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20300%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23e76f51%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23f4a261%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Crect%20width%3D%22300%22%20height%3D%22300%22%20rx%3D%2218%22%20fill%3D%22url(%23g)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2258%22%20r%3D%2240%22%20fill%3D%22rgba(255%2C255%2C255%2C0.14)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2274%22%20cy%3D%22242%22%20r%3D%2262%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%0A%20%20%3Ctext%20x%3D%2226%22%20y%3D%22198%22%20fill%3D%22rgba(255%2C255%2C255%2C0.94)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3EEMOTION%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%22232%22%20fill%3D%22rgba(255%2C255%2C255%2C0.78)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2216%22%20font-weight%3D%22600%22%3EBIGBANG%20(%E1%84%87%E1%85%B5%E1%86%A8%E1%84%87%E1%85%A2%E1%86%BC)%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%2244%22%20fill%3D%22rgba(255%2C255%2C255%2C0.56)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2212%22%20font-weight%3D%22700%22%20letter-spacing%3D%221.5%22%3EQQ%20MUSIC%20IMPORT%3C%2Ftext%3E%0A%3C%2Fsvg%3E"
+    },
+    {
+      "id": "web-seed-938b5f",
+      "uri": "file:///Users/gigass/Music/QQ音乐/BIGBANG (빅뱅)-Hands Up (Live).ogg",
+      "title": "Hands Up (Live)",
+      "artist": "BIGBANG (빅뱅)",
+      "album": "Hands Up (Live)",
+      "duration": 284,
+      "trackNumber": 1,
+      "artworkUri": "data:image/svg+xml;charset=UTF-8,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20300%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23264653%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%232a9d8f%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Crect%20width%3D%22300%22%20height%3D%22300%22%20rx%3D%2218%22%20fill%3D%22url(%23g)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2258%22%20r%3D%2240%22%20fill%3D%22rgba(255%2C255%2C255%2C0.14)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2274%22%20cy%3D%22242%22%20r%3D%2262%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%0A%20%20%3Ctext%20x%3D%2226%22%20y%3D%22198%22%20fill%3D%22rgba(255%2C255%2C255%2C0.94)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3EHands%20Up%20(Live)%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%22232%22%20fill%3D%22rgba(255%2C255%2C255%2C0.78)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2216%22%20font-weight%3D%22600%22%3EBIGBANG%20(%E1%84%87%E1%85%B5%E1%86%A8%E1%84%87%E1%85%A2%E1%86%BC)%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%2244%22%20fill%3D%22rgba(255%2C255%2C255%2C0.56)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2212%22%20font-weight%3D%22700%22%20letter-spacing%3D%221.5%22%3EQQ%20MUSIC%20IMPORT%3C%2Ftext%3E%0A%3C%2Fsvg%3E"
+    },
+    {
+      "id": "web-seed-1811ebe",
+      "uri": "file:///Users/gigass/Music/QQ音乐/BIGBANG (빅뱅)-TONIGHT.ogg",
+      "title": "TONIGHT",
+      "artist": "BIGBANG (빅뱅)",
+      "album": "TONIGHT",
+      "duration": 220,
+      "trackNumber": 1,
+      "artworkUri": "data:image/svg+xml;charset=UTF-8,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20300%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23e76f51%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23f4a261%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Crect%20width%3D%22300%22%20height%3D%22300%22%20rx%3D%2218%22%20fill%3D%22url(%23g)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2258%22%20r%3D%2240%22%20fill%3D%22rgba(255%2C255%2C255%2C0.14)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2274%22%20cy%3D%22242%22%20r%3D%2262%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%0A%20%20%3Ctext%20x%3D%2226%22%20y%3D%22198%22%20fill%3D%22rgba(255%2C255%2C255%2C0.94)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3ETONIGHT%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%22232%22%20fill%3D%22rgba(255%2C255%2C255%2C0.78)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2216%22%20font-weight%3D%22600%22%3EBIGBANG%20(%E1%84%87%E1%85%B5%E1%86%A8%E1%84%87%E1%85%A2%E1%86%BC)%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%2244%22%20fill%3D%22rgba(255%2C255%2C255%2C0.56)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2212%22%20font-weight%3D%22700%22%20letter-spacing%3D%221.5%22%3EQQ%20MUSIC%20IMPORT%3C%2Ftext%3E%0A%3C%2Fsvg%3E"
+    },
+    {
+      "id": "web-seed-11s07ew",
+      "uri": "file:///Users/gigass/Music/QQ音乐/BIGBANG (빅뱅)-WITH U.ogg",
+      "title": "WITH U",
+      "artist": "BIGBANG (빅뱅)",
+      "album": "WITH U",
+      "duration": 182,
+      "trackNumber": 1,
+      "artworkUri": "data:image/svg+xml;charset=UTF-8,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20300%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%231d3557%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23457b9d%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Crect%20width%3D%22300%22%20height%3D%22300%22%20rx%3D%2218%22%20fill%3D%22url(%23g)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2258%22%20r%3D%2240%22%20fill%3D%22rgba(255%2C255%2C255%2C0.14)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2274%22%20cy%3D%22242%22%20r%3D%2262%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%0A%20%20%3Ctext%20x%3D%2226%22%20y%3D%22198%22%20fill%3D%22rgba(255%2C255%2C255%2C0.94)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3EWITH%20U%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%22232%22%20fill%3D%22rgba(255%2C255%2C255%2C0.78)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2216%22%20font-weight%3D%22600%22%3EBIGBANG%20(%E1%84%87%E1%85%B5%E1%86%A8%E1%84%87%E1%85%A2%E1%86%BC)%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%2244%22%20fill%3D%22rgba(255%2C255%2C255%2C0.56)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2212%22%20font-weight%3D%22700%22%20letter-spacing%3D%221.5%22%3EQQ%20MUSIC%20IMPORT%3C%2Ftext%3E%0A%3C%2Fsvg%3E"
+    },
+    {
+      "id": "web-seed-1rtcmci",
+      "uri": "file:///Users/gigass/Music/QQ音乐/Candee!-Ein Kleines Lied (Around the World).ogg",
+      "title": "Ein Kleines Lied (Around the World)",
+      "artist": "Candee!",
+      "album": "Ein Kleines Lied (Around the World)",
+      "duration": 216,
+      "trackNumber": 1,
+      "artworkUri": "data:image/svg+xml;charset=UTF-8,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20300%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23e76f51%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23f4a261%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Crect%20width%3D%22300%22%20height%3D%22300%22%20rx%3D%2218%22%20fill%3D%22url(%23g)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2258%22%20r%3D%2240%22%20fill%3D%22rgba(255%2C255%2C255%2C0.14)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2274%22%20cy%3D%22242%22%20r%3D%2262%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%0A%20%20%3Ctext%20x%3D%2226%22%20y%3D%22198%22%20fill%3D%22rgba(255%2C255%2C255%2C0.94)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3EEin%20Kleines%20Lied%20(Around%20the%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%22232%22%20fill%3D%22rgba(255%2C255%2C255%2C0.78)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2216%22%20font-weight%3D%22600%22%3ECandee!%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%2244%22%20fill%3D%22rgba(255%2C255%2C255%2C0.56)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2212%22%20font-weight%3D%22700%22%20letter-spacing%3D%221.5%22%3EQQ%20MUSIC%20IMPORT%3C%2Ftext%3E%0A%3C%2Fsvg%3E"
+    },
+    {
+      "id": "web-seed-1bj7a6a",
+      "uri": "file:///Users/gigass/Music/QQ音乐/CNBLUE (씨엔블루)-No more.ogg",
+      "title": "No more",
+      "artist": "CNBLUE (씨엔블루)",
+      "album": "No more",
+      "duration": 222,
+      "trackNumber": 1,
+      "artworkUri": "data:image/svg+xml;charset=UTF-8,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20300%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23e76f51%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23f4a261%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Crect%20width%3D%22300%22%20height%3D%22300%22%20rx%3D%2218%22%20fill%3D%22url(%23g)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2258%22%20r%3D%2240%22%20fill%3D%22rgba(255%2C255%2C255%2C0.14)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2274%22%20cy%3D%22242%22%20r%3D%2262%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%0A%20%20%3Ctext%20x%3D%2226%22%20y%3D%22198%22%20fill%3D%22rgba(255%2C255%2C255%2C0.94)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3ENo%20more%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%22232%22%20fill%3D%22rgba(255%2C255%2C255%2C0.78)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2216%22%20font-weight%3D%22600%22%3ECNBLUE%20(%E1%84%8A%E1%85%B5%E1%84%8B%E1%85%A6%E1%86%AB%E1%84%87%E1%85%B3%E1%86%AF%E1%84%85%E1%85%AE)%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%2244%22%20fill%3D%22rgba(255%2C255%2C255%2C0.56)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2212%22%20font-weight%3D%22700%22%20letter-spacing%3D%221.5%22%3EQQ%20MUSIC%20IMPORT%3C%2Ftext%3E%0A%3C%2Fsvg%3E"
+    },
+    {
+      "id": "web-seed-165n4xb",
+      "uri": "file:///Users/gigass/Music/QQ音乐/CNBLUE (씨엔블루)-With your eyes.ogg",
+      "title": "With your eyes",
+      "artist": "CNBLUE (씨엔블루)",
+      "album": "With your eyes",
+      "duration": 208,
+      "trackNumber": 1,
+      "artworkUri": "data:image/svg+xml;charset=UTF-8,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20300%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%232b2d42%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23ef233c%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Crect%20width%3D%22300%22%20height%3D%22300%22%20rx%3D%2218%22%20fill%3D%22url(%23g)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2258%22%20r%3D%2240%22%20fill%3D%22rgba(255%2C255%2C255%2C0.14)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2274%22%20cy%3D%22242%22%20r%3D%2262%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%0A%20%20%3Ctext%20x%3D%2226%22%20y%3D%22198%22%20fill%3D%22rgba(255%2C255%2C255%2C0.94)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3EWith%20your%20eyes%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%22232%22%20fill%3D%22rgba(255%2C255%2C255%2C0.78)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2216%22%20font-weight%3D%22600%22%3ECNBLUE%20(%E1%84%8A%E1%85%B5%E1%84%8B%E1%85%A6%E1%86%AB%E1%84%87%E1%85%B3%E1%86%AF%E1%84%85%E1%85%AE)%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%2244%22%20fill%3D%22rgba(255%2C255%2C255%2C0.56)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2212%22%20font-weight%3D%22700%22%20letter-spacing%3D%221.5%22%3EQQ%20MUSIC%20IMPORT%3C%2Ftext%3E%0A%3C%2Fsvg%3E"
+    },
+    {
+      "id": "web-seed-1dkeoye",
+      "uri": "file:///Users/gigass/Music/QQ音乐/DOES (ドーズ)-トーチ・ライター (Torch Lighter).ogg",
+      "title": "トーチ・ライター (Torch Lighter)",
+      "artist": "DOES (ドーズ)",
+      "album": "トーチ・ライター (Torch Lighter)",
+      "duration": 218,
+      "trackNumber": 1,
+      "artworkUri": "data:image/svg+xml;charset=UTF-8,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20300%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%233d405b%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%2381b29a%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Crect%20width%3D%22300%22%20height%3D%22300%22%20rx%3D%2218%22%20fill%3D%22url(%23g)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2258%22%20r%3D%2240%22%20fill%3D%22rgba(255%2C255%2C255%2C0.14)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2274%22%20cy%3D%22242%22%20r%3D%2262%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%0A%20%20%3Ctext%20x%3D%2226%22%20y%3D%22198%22%20fill%3D%22rgba(255%2C255%2C255%2C0.94)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3E%E3%83%88%E3%83%BC%E3%83%81%E3%83%BB%E3%83%A9%E3%82%A4%E3%82%BF%E3%83%BC%20(Torch%20Lighter)%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%22232%22%20fill%3D%22rgba(255%2C255%2C255%2C0.78)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2216%22%20font-weight%3D%22600%22%3EDOES%20(%E3%83%88%E3%82%99%E3%83%BC%E3%82%B9%E3%82%99)%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%2244%22%20fill%3D%22rgba(255%2C255%2C255%2C0.56)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2212%22%20font-weight%3D%22700%22%20letter-spacing%3D%221.5%22%3EQQ%20MUSIC%20IMPORT%3C%2Ftext%3E%0A%3C%2Fsvg%3E"
+    },
+    {
+      "id": "web-seed-m4lpts",
+      "uri": "file:///Users/gigass/Music/QQ音乐/HowieQuan-Flower Dance.ogg",
+      "title": "Flower Dance",
+      "artist": "HowieQuan",
+      "album": "Flower Dance",
+      "duration": 307,
+      "trackNumber": 1,
+      "artworkUri": "data:image/svg+xml;charset=UTF-8,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20300%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%231d3557%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23457b9d%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Crect%20width%3D%22300%22%20height%3D%22300%22%20rx%3D%2218%22%20fill%3D%22url(%23g)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2258%22%20r%3D%2240%22%20fill%3D%22rgba(255%2C255%2C255%2C0.14)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2274%22%20cy%3D%22242%22%20r%3D%2262%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%0A%20%20%3Ctext%20x%3D%2226%22%20y%3D%22198%22%20fill%3D%22rgba(255%2C255%2C255%2C0.94)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3EFlower%20Dance%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%22232%22%20fill%3D%22rgba(255%2C255%2C255%2C0.78)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2216%22%20font-weight%3D%22600%22%3EHowieQuan%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%2244%22%20fill%3D%22rgba(255%2C255%2C255%2C0.56)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2212%22%20font-weight%3D%22700%22%20letter-spacing%3D%221.5%22%3EQQ%20MUSIC%20IMPORT%3C%2Ftext%3E%0A%3C%2Fsvg%3E"
+    },
+    {
+      "id": "web-seed-wqubyo",
+      "uri": "file:///Users/gigass/Music/QQ音乐/Lia (りあ)-鳥の詩 ~ (鸟之诗 ~).ogg",
+      "title": "鳥の詩 ~ (鸟之诗 ~)",
+      "artist": "Lia (りあ)",
+      "album": "鳥の詩 ~ (鸟之诗 ~)",
+      "duration": 251,
+      "trackNumber": 1,
+      "artworkUri": "data:image/svg+xml;charset=UTF-8,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20300%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%231d3557%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23457b9d%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Crect%20width%3D%22300%22%20height%3D%22300%22%20rx%3D%2218%22%20fill%3D%22url(%23g)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2258%22%20r%3D%2240%22%20fill%3D%22rgba(255%2C255%2C255%2C0.14)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2274%22%20cy%3D%22242%22%20r%3D%2262%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%0A%20%20%3Ctext%20x%3D%2226%22%20y%3D%22198%22%20fill%3D%22rgba(255%2C255%2C255%2C0.94)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3E%E9%B3%A5%E3%81%AE%E8%A9%A9%20~%20(%E9%B8%9F%E4%B9%8B%E8%AF%97%20~)%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%22232%22%20fill%3D%22rgba(255%2C255%2C255%2C0.78)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2216%22%20font-weight%3D%22600%22%3ELia%20(%E3%82%8A%E3%81%82)%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%2244%22%20fill%3D%22rgba(255%2C255%2C255%2C0.56)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2212%22%20font-weight%3D%22700%22%20letter-spacing%3D%221.5%22%3EQQ%20MUSIC%20IMPORT%3C%2Ftext%3E%0A%3C%2Fsvg%3E"
+    },
+    {
+      "id": "web-seed-1rg1gye",
+      "uri": "file:///Users/gigass/Music/QQ音乐/Lovestoned-Thursdays (Single Version).ogg",
+      "title": "Thursdays (Single Version)",
+      "artist": "Lovestoned",
+      "album": "Thursdays (Single Version)",
+      "duration": 180,
+      "trackNumber": 1,
+      "artworkUri": "data:image/svg+xml;charset=UTF-8,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20300%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%233d405b%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%2381b29a%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Crect%20width%3D%22300%22%20height%3D%22300%22%20rx%3D%2218%22%20fill%3D%22url(%23g)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2258%22%20r%3D%2240%22%20fill%3D%22rgba(255%2C255%2C255%2C0.14)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2274%22%20cy%3D%22242%22%20r%3D%2262%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%0A%20%20%3Ctext%20x%3D%2226%22%20y%3D%22198%22%20fill%3D%22rgba(255%2C255%2C255%2C0.94)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3EThursdays%20(Single%20Version)%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%22232%22%20fill%3D%22rgba(255%2C255%2C255%2C0.78)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2216%22%20font-weight%3D%22600%22%3ELovestoned%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%2244%22%20fill%3D%22rgba(255%2C255%2C255%2C0.56)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2212%22%20font-weight%3D%22700%22%20letter-spacing%3D%221.5%22%3EQQ%20MUSIC%20IMPORT%3C%2Ftext%3E%0A%3C%2Fsvg%3E"
+    },
+    {
+      "id": "web-seed-1bwjygn",
+      "uri": "file:///Users/gigass/Music/QQ音乐/MIC男团-Get It Hot.ogg",
+      "title": "Get It Hot",
+      "artist": "MIC男团",
+      "album": "Get It Hot",
+      "duration": 208,
+      "trackNumber": 1,
+      "artworkUri": "data:image/svg+xml;charset=UTF-8,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20300%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%232b2d42%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23ef233c%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Crect%20width%3D%22300%22%20height%3D%22300%22%20rx%3D%2218%22%20fill%3D%22url(%23g)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2258%22%20r%3D%2240%22%20fill%3D%22rgba(255%2C255%2C255%2C0.14)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2274%22%20cy%3D%22242%22%20r%3D%2262%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%0A%20%20%3Ctext%20x%3D%2226%22%20y%3D%22198%22%20fill%3D%22rgba(255%2C255%2C255%2C0.94)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3EGet%20It%20Hot%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%22232%22%20fill%3D%22rgba(255%2C255%2C255%2C0.78)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2216%22%20font-weight%3D%22600%22%3EMIC%E7%94%B7%E5%9B%A2%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%2244%22%20fill%3D%22rgba(255%2C255%2C255%2C0.56)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2212%22%20font-weight%3D%22700%22%20letter-spacing%3D%221.5%22%3EQQ%20MUSIC%20IMPORT%3C%2Ftext%3E%0A%3C%2Fsvg%3E"
+    },
+    {
+      "id": "web-seed-dsst05",
+      "uri": "file:///Users/gigass/Music/QQ音乐/THE STREET BEATS (ザ・ストリート・ビーツ)-I WANNA CHANGE.ogg",
+      "title": "I WANNA CHANGE",
+      "artist": "THE STREET BEATS (ザ・ストリート・ビーツ)",
+      "album": "I WANNA CHANGE",
+      "duration": 352,
+      "trackNumber": 1,
+      "artworkUri": "data:image/svg+xml;charset=UTF-8,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20300%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23ff006e%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23fb5607%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Crect%20width%3D%22300%22%20height%3D%22300%22%20rx%3D%2218%22%20fill%3D%22url(%23g)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2258%22%20r%3D%2240%22%20fill%3D%22rgba(255%2C255%2C255%2C0.14)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2274%22%20cy%3D%22242%22%20r%3D%2262%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%0A%20%20%3Ctext%20x%3D%2226%22%20y%3D%22198%22%20fill%3D%22rgba(255%2C255%2C255%2C0.94)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3EI%20WANNA%20CHANGE%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%22232%22%20fill%3D%22rgba(255%2C255%2C255%2C0.78)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2216%22%20font-weight%3D%22600%22%3ETHE%20STREET%20BEATS%20(%E3%82%B5%E3%82%99%E3%83%BB%E3%82%B9%E3%83%88%E3%83%AA%E3%83%BC%E3%83%88%E3%83%BB%E3%83%92%E3%82%99%E3%83%BC%E3%83%84)%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%2244%22%20fill%3D%22rgba(255%2C255%2C255%2C0.56)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2212%22%20font-weight%3D%22700%22%20letter-spacing%3D%221.5%22%3EQQ%20MUSIC%20IMPORT%3C%2Ftext%3E%0A%3C%2Fsvg%3E"
+    },
+    {
+      "id": "web-seed-f7gyk1",
+      "uri": "file:///Users/gigass/Music/QQ音乐/대국남아 (大国男儿)-비틀비틀 (Staggering).ogg",
+      "title": "비틀비틀 (Staggering)",
+      "artist": "대국남아 (大国男儿)",
+      "album": "비틀비틀 (Staggering)",
+      "duration": 233,
+      "trackNumber": 1,
+      "artworkUri": "data:image/svg+xml;charset=UTF-8,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20300%20300%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%236a4c93%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%238ac926%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Crect%20width%3D%22300%22%20height%3D%22300%22%20rx%3D%2218%22%20fill%3D%22url(%23g)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22248%22%20cy%3D%2258%22%20r%3D%2240%22%20fill%3D%22rgba(255%2C255%2C255%2C0.14)%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2274%22%20cy%3D%22242%22%20r%3D%2262%22%20fill%3D%22rgba(255%2C255%2C255%2C0.08)%22%2F%3E%0A%20%20%3Ctext%20x%3D%2226%22%20y%3D%22198%22%20fill%3D%22rgba(255%2C255%2C255%2C0.94)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3E%E1%84%87%E1%85%B5%E1%84%90%E1%85%B3%E1%86%AF%E1%84%87%E1%85%B5%E1%84%90%E1%85%B3%E1%86%AF%20(Staggering)%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%22232%22%20fill%3D%22rgba(255%2C255%2C255%2C0.78)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2216%22%20font-weight%3D%22600%22%3E%E1%84%83%E1%85%A2%E1%84%80%E1%85%AE%E1%86%A8%E1%84%82%E1%85%A1%E1%86%B7%E1%84%8B%E1%85%A1%20(%E5%A4%A7%E5%9B%BD%E7%94%B7%E5%84%BF)%3C%2Ftext%3E%0A%20%20%3Ctext%20x%3D%2228%22%20y%3D%2244%22%20fill%3D%22rgba(255%2C255%2C255%2C0.56)%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2212%22%20font-weight%3D%22700%22%20letter-spacing%3D%221.5%22%3EQQ%20MUSIC%20IMPORT%3C%2Ftext%3E%0A%3C%2Fsvg%3E"
+    }
+  ],
+  "musicDirectory": "/Users/gigass/Music/QQ音乐"
+}

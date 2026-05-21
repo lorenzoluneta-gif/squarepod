@@ -1,6 +1,6 @@
 {
   "name": "Retro Square Player",
-  "description": "A 1:1 square aspect ratio music player simulating the classic iPod Nano 3rd Gen interface with a virtual Click Wheel.",
+  "description": "An Android-first local music player with iPod classic Click Wheel and iPod nano 6 touch interfaces, Cover Flow, local media browsing, and offline playback.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }

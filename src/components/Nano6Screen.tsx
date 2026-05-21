@@ -542,10 +542,10 @@ function HomeScreen({ rootMenu, currentSong, locale, nano6Wallpaper, onOpenNode 
           {tx(locale, 'Done', '完成')}
         </button>
       )}
-      <AnimatePresence mode="wait">
+      <AnimatePresence initial={false} mode="sync">
         <motion.div
           key={activePage}
-          className="relative z-10 grid h-full grid-cols-2 content-center justify-items-center gap-x-[6px] gap-y-[10px] px-[12px] pb-[18px] pt-[24px]"
+          className="absolute inset-0 z-10 grid h-full grid-cols-2 content-center justify-items-center gap-x-[6px] gap-y-[10px] px-[12px] pb-[18px] pt-[24px]"
           initial={{ opacity: 0, x: activePage ? 18 : -18 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0 }}
@@ -666,6 +666,19 @@ function CoverFlowScreen({ node, locale, onActivateChild, onBack }: { node: Menu
   }, [clampPosition, maxIndex]);
 
   const selectedAlbum = albums[selectedIndex];
+  const visibleAlbums = React.useMemo(() => (
+    albums
+      .map((album, index) => ({ album, index, distance: index - position }))
+      .filter(({ distance }) => Math.abs(distance) <= 2.5)
+      .sort((left, right) => {
+        const leftAbs = Math.abs(left.distance);
+        const rightAbs = Math.abs(right.distance);
+        const leftRank = leftAbs < 0.08 ? 300 : leftAbs < 1.1 ? 200 - Math.round(leftAbs * 40) : 100 - Math.round(leftAbs * 20);
+        const rightRank = rightAbs < 0.08 ? 300 : rightAbs < 1.1 ? 200 - Math.round(rightAbs * 40) : 100 - Math.round(rightAbs * 20);
+        if (leftRank !== rightRank) return leftRank - rightRank;
+        return left.index - right.index;
+      })
+  ), [albums, position]);
 
   const beginDrag = (x: number, y: number) => {
     stopAnimation();
@@ -781,33 +794,63 @@ function CoverFlowScreen({ node, locale, onActivateChild, onBack }: { node: Menu
       data-nano-interactive="true"
     >
       <StatusBar title={node.title} isPlaying={false} />
-      <div className="absolute inset-x-0 top-[24px] h-[124px]" style={{ perspective: 720 }}>
-        {albums.map((album, index) => {
-          const distance = index - position;
-          if (Math.abs(distance) > 2) return null;
+      <div className="absolute inset-x-0 top-[24px] h-[124px]" style={{ perspective: 720, transformStyle: 'preserve-3d' }}>
+        {visibleAlbums.map(({ album, distance }) => {
           const abs = Math.abs(distance);
-          const x = distance * 62;
-          const rotate = distance * -58;
-          const scale = 1 - Math.min(abs, 1.8) * 0.18;
-          const opacity = Math.max(0.24, 1 - abs * 0.24);
+          const sign = Math.sign(distance);
+          const near = Math.min(abs, 1);
+          const far = Math.max(0, abs - 1);
+          const x = abs <= 1
+            ? sign * near * 74
+            : sign * (74 + far * 42);
+          const y = abs <= 1
+            ? near * 6
+            : 6 + far * 8;
+          const z = abs <= 1
+            ? 54 - near * 18
+            : 36 - far * 14;
+          const rotateY = abs <= 1
+            ? -sign * near * 62
+            : -sign * (62 + far * 8);
+          const scale = Math.max(0.56, abs <= 1
+            ? 1 - near * 0.2
+            : 0.8 - far * 0.08);
+          const opacity = Math.max(0.18, abs <= 1
+            ? 1 - near * 0.2
+            : 0.8 - far * 0.18);
+          const zIndex = abs < 0.08
+            ? 300
+            : abs < 1.1
+              ? 200 - Math.round(abs * 40)
+              : 100 - Math.round(abs * 20);
+          const isCenter = abs < 0.08;
           return (
             <div
               key={album.id}
-              className="absolute left-1/2 top-[6px] h-[96px] w-[96px] origin-center overflow-visible"
+              className="absolute left-1/2 top-[6px] h-[96px] w-[96px] origin-center overflow-visible will-change-transform"
               style={{
-                transform: `translateX(calc(-50% + ${x}px)) rotateY(${rotate}deg) scale(${scale})`,
-                zIndex: 20 - abs,
+                transform: `translateX(-50%) translate3d(${x}px, ${y}px, ${z}px) rotateY(${rotateY}deg) scale(${scale})`,
+                transformStyle: 'preserve-3d',
+                zIndex,
                 opacity,
                 transition: isDragging ? 'none' : 'opacity 120ms linear',
+                willChange: 'transform, opacity',
               }}
             >
-              <div className="relative h-full w-full overflow-hidden rounded-[2px] bg-neutral-300 shadow-[0_18px_24px_-13px_rgba(0,0,0,0.78)] ring-1 ring-white/80">
+              <div
+                className={`relative h-full w-full overflow-hidden rounded-[2px] bg-neutral-300 ${isCenter ? 'shadow-[0_24px_30px_-14px_rgba(0,0,0,0.74)] ring-1 ring-white/90' : 'shadow-[0_18px_24px_-13px_rgba(0,0,0,0.78)] ring-1 ring-white/80'}`}
+                style={{
+                  backfaceVisibility: 'hidden',
+                  WebkitBackfaceVisibility: 'hidden',
+                  transform: 'translateZ(1px)',
+                }}
+              >
                 {album.previewImage ? (
                   <CachedImage src={album.previewImage} className="h-full w-full object-cover" draggable={false} />
                 ) : (
                   <div className="grid h-full w-full place-items-center bg-[linear-gradient(135deg,#e5e5e5,#777)] text-[10px] font-black text-white">{album.title.slice(0, 2)}</div>
                 )}
-                <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(255,255,255,0.3),rgba(255,255,255,0.03)_38%,rgba(0,0,0,0.12))]" />
+                <div className={`absolute inset-0 ${isCenter ? 'bg-[linear-gradient(112deg,rgba(255,255,255,0.28),rgba(255,255,255,0.05)_36%,rgba(0,0,0,0.08))]' : 'bg-[linear-gradient(115deg,rgba(255,255,255,0.24),rgba(255,255,255,0.03)_38%,rgba(0,0,0,0.14))]'}`} />
               </div>
               <div className="mt-[2px] h-[26px] w-full overflow-hidden rounded-[2px] opacity-35 [transform:scaleY(-1)]">
                 {album.previewImage && <CachedImage src={album.previewImage} className="h-full w-full object-cover" draggable={false} />}
@@ -1603,7 +1646,7 @@ function EbookReaderScreen({
         <span className="shrink-0 tabular-nums">{chapterIndex + 1}/{chapters.length}</span>
       </div>
       <div className="absolute inset-x-0 bottom-0 top-[35px] overflow-hidden [perspective:760px]">
-        <AnimatePresence mode="wait" initial={false}>
+        <AnimatePresence mode="sync" initial={false}>
           <motion.div
             key={`${node.id}_${chapterIndex}`}
             ref={scrollerRef}
@@ -2452,10 +2495,10 @@ export function Nano6Screen(props: Nano6ScreenProps) {
               </div>
             ) : (
               <div className="absolute left-0 top-0 h-[240px] w-[240px] origin-top-left" style={{ transform: `scale(${screenScale})` }}>
-                <AnimatePresence mode="wait">
+                <AnimatePresence initial={false} mode="sync">
                   <motion.div
                     key={props.currentNode.id}
-                    className="h-full w-full"
+                    className="absolute inset-0 h-full w-full"
                     initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.985 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={shouldReduceMotion ? undefined : { opacity: 0, scale: 0.992 }}
