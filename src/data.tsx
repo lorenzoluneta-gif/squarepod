@@ -2052,11 +2052,12 @@ const generateSettingsMenu = (local: LocalMusicMenuState = {}): MenuNode => {
         type: 'about',
         previewIcon: <Info className="w-16 h-16" />,
         detailLines: [
+          'Version: V1.4',
+          'Devices: Nano6 + Classic',
           `${t(locale, 'allSongs')}: ${trackCount}`,
           `${t(locale, 'artists')}: ${artistCount}`,
           `${t(locale, 'albums')}: ${albumCount}`,
-          'Android',
-          '0.0.0',
+          'Platform: Android',
         ],
       },
       {
